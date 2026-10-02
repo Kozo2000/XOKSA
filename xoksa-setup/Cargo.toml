@@ -1,0 +1,42 @@
+# XOKSA settings app — a standalone Tauri app for engine setup.
+#
+# It configures `xoksa.env` + the OS keychain, generates the serve access token,
+# and starts/restarts the engine. Standalone workspace (mirrors xoksa-desktop):
+# its own Cargo.lock, excluded from the root workspace, so the CLI/server build,
+# fmt, clippy, test, and CI are unaffected.
+#
+# It deliberately does NOT depend on the `xoksa` crate: like the desktop, it is a
+# UI shell that drives the `xoksa` engine binary as a CHILD PROCESS
+# (apply-config / serve / config-json). See docs/dev-prog/security-design.md §6.
+[package]
+name = "xoksa-setup"
+version = "2.9.10"
+edition = "2021"
+publish = false
+description = "XOKSA settings app (standalone engine setup: config, token, restart)"
+
+# Windows PE version resource (see xoksa-desktop/Cargo.toml for the rationale).
+[package.metadata.tauri-winres]
+OriginalFilename = "xoksa-setup.exe"
+
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# Native file-open dialog for picking the Japanese-stock alias CSV path (open only).
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Zeroizes the config JSON (API keys / token) after it is streamed to the engine.
+zeroize = "1.5"
+# Single source of truth for the canonical config dir — the SAME crate the engine
+# and desktop use, so the location is defined in exactly one place.
+xoksa-paths = { path = "../xoksa-paths" }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

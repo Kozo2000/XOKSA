@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "dashboard",
+  "description": "Remote capability for the main window when it shows the dashboard served at the loopback XOKSA origin (127.0.0.1:8787). This origin carries attacker-influenceable content (news, LLM output), so it is least-privilege: ONLY the two windowing/link commands plus the event channel needed to receive a brushed chart interval / help pick from the popup windows. No core:default, no filesystem, shell, http, or window/path operations.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
+  },
+  "permissions": ["allow-open-popup-window", "allow-open-external", "core:event:default"]
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Local (app-origin) capability for the main window — the connection screen (which engine to talk to). core:default UI operations plus the connection-screen commands in `allow-setup-commands` (load_connection, connect, open_settings_app, open_manual). Configuration and API keys live in the SEPARATE settings app; nothing sensitive crosses this boundary. No remote grant: the loopback dashboard's narrower access is in the `dashboard` capability. No shell, arbitrary filesystem, http, dialog, or autostart.",
+  "windows": ["main"],
+  "permissions": ["core:default", "allow-setup-commands"]
+}

@@ -1,0 +1,109 @@
+[package]
+name = "xoksa"
+version = "2.9.10"
+edition = "2021"
+authors = ["kozo2000"]
+description = "Stock analysis and news title triage tool using LLMs"
+license = "MIT"
+
+# `native-tls` has no direct `use` — it is the TLS backend reqwest selects via
+# its default-tls feature (also pulled transitively). Kept as an explicit,
+# version-pinned declaration, so cargo-machete is told to ignore it.
+[package.metadata.cargo-machete]
+ignored = ["native-tls"]
+
+# The Rust/WASM frontend (webui-leptos) is a wasm32-only crate built separately
+# with trunk. Exclude it so root `cargo build` / fmt / clippy / test (and CI)
+# never try to compile it for the host target.
+[workspace]
+exclude = ["webui-leptos", "xoksa-desktop", "xoksa-paths", "xoksa-setup"]
+
+[profile.release]
+debug = 0          # = rustc -C debuginfo=0（デバッグ情報を出さない）
+strip = true       # シンボル/デバッグ情報を除去 → 小型・クリーンなバイナリ（AVヒューリスティックの手がかりを減らす）
+lto = true         # リンク時最適化 → デッドコード除去で更に小型・単一最適化
+codegen-units = 1  # 最適化単位を1に（ビルドは遅くなるが最小・最適）
+# 注: panic は既定の "unwind" のまま（serve でタスクpanic時もプロセスを落とさない）。
+# 配布バイナリは必ず release（strip済み）を使う。debug ビルドは文字列/パス/panic文言が多く
+# 誤検知を踏みやすいので配布・スキャン対象にしない。
+
+[features]
+# On by default: the shipped binary must be self-contained (download-and-run),
+# so every build embeds the built Web UI (webui-leptos/dist) into the binary.
+# This REQUIRES `trunk build --release` to have produced webui-leptos/dist
+# BEFORE the cargo build. To build without the UI (rarely needed), pass
+# `--no-default-features`.
+default = ["embedded-ui"]
+embedded-ui = ["dep:include_dir"]
+
+[dependencies]
+reqwest = { version = "0.13.5", features = ["blocking", "json", "gzip","brotli","cookies","socks"] }
+tokio = { version = "1.37", features = ["full"] }
+csv = "1"
+# Read the JPX "Listed Securities List" (data_j.xls/.xlsx) directly for the
+# optional ticker→company-name map (ALIAS_CSV), so users need not open Excel and
+# convert to CSV. Pure Rust; .csv is still accepted (see bootstrap::load_alias_csv).
+calamine = "0.36"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ta = "0.5.0"
+chrono = "0.4"
+clap = { version = "4.3", features = ["derive"] }
+urlencoding = "2.1.2"
+regex = "1"
+colored = "3.0.0"
+
+native-tls = "0.2.14"   # TLS backend for reqwest (default-tls); also pulled transitively — kept explicit
+zeroize = "1.5"
+chrono-tz = "0.10"
+anyhow = "1"
+# Single source of truth for the canonical config path — the SAME crate the
+# desktop uses, so the location is defined in exactly one place (no drift). This
+# crate owns the `dirs` dependency.
+xoksa-paths = { path = "xoksa-paths" }
+crossterm = { version = "0.29", features = ["event-stream"] }
+futures = { version = "0.3", default-features = false, features = ["std"] }
+rustyline = { version = "14", features = [] }
+# OS keychain access. We depend on keyring-core (the Entry/Store API) plus the
+# platform-native store crates (see the [target.*] sections below) directly, and
+# register the native store in keystore.rs. We deliberately do NOT use the
+# `keyring` meta-crate: its build links the turso-backed `db-keystore` (an
+# embedded SQL DB) into the binary, contrary to the No-Database design. Keys stay
+# in the OS keychain (Windows Credential Manager / macOS Keychain / Linux
+# keyutils); no SQL database is linked.
+keyring-core = "1"
+
+# Web UI / local HTTP server (`xoksa serve --ui`). Thin async layer over the
+# tokio/hyper stack already pulled in by reqwest. UI/transport only — no analysis,
+# LLM, or backtest logic lives behind it.
+axum = "0.8"
+
+# Render the bundled manual (indicator-guide.md) to HTML for the in-app
+# `/manual/*` route served by `serve --ui` and the desktop app.
+
+# CSPRNG for per-client Web session IDs (random cookie token). OS-backed entropy.
+getrandom = "0.2"
+
+# Optional: embed webui-leptos/dist into the binary (the `embedded-ui` feature,
+# used for release builds). Only pulled in when that feature is enabled.
+include_dir = { version = "0.7", optional = true }
+
+# Windows-only: embed PE version info + application manifest at build time.
+# See build.rs. Gated on a Windows host so non-Windows builds pull in nothing.
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+# Platform-native OS credential stores, registered in keystore.rs via
+# keyring_core::set_default_store. Each compiles only on its own OS; none links
+# an embedded database (unlike the keyring meta-crate's default db-keystore).
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+linux-keyutils-keyring-store = "1"
+
+
+

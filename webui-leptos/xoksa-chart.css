@@ -1,0 +1,20 @@
+/* Styles for the market-chart popup window. Served as a static asset (trunk
+   copy-file) and linked by the popup via an absolute same-origin URL, so it works
+   under a strict CSP (style-src 'self') in every browser — CSSOM adoptedStyleSheets
+   is not applied to about:blank popups in Firefox. */
+:root { color-scheme: dark }
+html, body { height: 100% }
+body { margin: 0; padding: 16px 18px; box-sizing: border-box; background: #0f1115; color: #e6e9ef; font: 15px/1.5 system-ui, 'Segoe UI', 'Noto Sans JP', sans-serif; display: flex; flex-direction: column; overflow: hidden }
+h1 { font-size: 1.1em; margin: 0 0 8px; flex: 0 0 auto }
+h1 .px { color: #4c8dff; margin-left: 10px }
+h1 .asof { color: #8b93a3; font-size: .72em; font-weight: 400; margin-left: 12px }
+h1 .tf { color: #d9b341; font-size: .8em; margin-left: 8px; padding: 1px 8px; border: 1px solid #2a2f3a; border-radius: 10px }
+.note { color: #8b93a3; flex: 0 0 auto; margin: 8px 0 0 }
+.cbs { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 10px; color: #c2c9d6; font-size: .9em; flex: 0 0 auto }
+.cbs label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer }
+svg { background: #171a21; border: 1px solid #2a2f3a; border-radius: 8px; user-select: none; -webkit-user-select: none; flex: 1 1 auto; min-height: 0; width: 100%; height: 100% }
+svg text { user-select: none; -webkit-user-select: none }
+.lbl { fill: #8b93a3; font-size: 12px }
+/* Cursor-following hover tooltip (positioned via CSSOM by the popup script);
+   WKWebView does not render SVG <title> tooltips, so the values are shown here. */
+#chart-tip { position: fixed; z-index: 20; display: none; pointer-events: none; background: #1b1f27; color: #e6e9ef; border: 1px solid #3a4150; border-radius: 4px; padding: 3px 8px; font-size: 12px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.4) }

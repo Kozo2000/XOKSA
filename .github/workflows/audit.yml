@@ -1,0 +1,117 @@
+name: Scheduled audit
+
+# The advisory database moves on its own schedule; this repository's pushes do
+# not. CI runs on push and pull request, and Dependabot runs weekly, so between
+# two pushes a freshly published advisory is invisible.
+#
+# That is not hypothetical. RUSTSEC-2026-0285 (rustls 0.23.32 — TLS 1.3
+# handshake messages accepted across encryption level boundaries) was published
+# 2026-09-14, the day AFTER the v2.9.7 shipping inspection recorded a clean
+# `cargo audit`. Shipping 2.9.7 as inspected would have shipped it; it was
+# caught only because the v2.9.8 work happened to re-run the gates. A daily scan
+# closes that window to a day and does not depend on anyone happening to push.
+on:
+  schedule:
+    # 21:00 UTC = 06:00 JST, so a finding is already waiting at the start of the day.
+    - cron: '0 21 * * *'
+  # Run on demand — worth doing immediately before freezing a release artifact.
+  workflow_dispatch:
+
+# Least privilege: read the code, and open an issue when something is found.
+# Nothing else, and no secrets beyond the automatic GITHUB_TOKEN.
+permissions:
+  contents: read
+  issues: write
+
+# One scan at a time; never cancel a running one, because a cancelled scan
+# reports nothing and looks exactly like a clean scan.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  audit:
+    name: cargo audit (scheduled)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Pinned to a commit SHA, not a mutable tag — same rule as ci.yml.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # do not leave the GITHUB_TOKEN in .git/config
+
+      - name: Read the pinned toolchain
+        id: rust
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      # `pipefail` matters here: without it `cargo audit | tee` reports tee's
+      # exit status, so a real finding would pass the step silently.
+      - name: cargo audit (native)
+        run: |
+          set -o pipefail
+          cargo audit 2>&1 | tee audit-native.txt
+
+      # The WASM frontend is its own workspace with a separate Cargo.lock, so the
+      # native scan above does not cover it. Its crates run in the user's browser.
+      # `always()` so a native finding does not hide a WASM one.
+      - name: cargo audit (webui-leptos / WASM frontend)
+        if: always()
+        run: |
+          set -o pipefail
+          cargo audit -f webui-leptos/Cargo.lock 2>&1 | tee audit-wasm.txt
+
+      # A scheduled run that fails is visible only to someone who opens the
+      # Actions tab — which is the same "nobody was looking" failure this
+      # workflow exists to prevent. Open an issue instead. A second failure while
+      # the first issue is still open adds a comment rather than a new issue, so
+      # an unfixed advisory does not produce one issue per day.
+      - name: Report the finding as an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "\`cargo audit\` reported a finding on the scheduled scan of $(date -u +%Y-%m-%d)."
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            echo '### native (`Cargo.lock`)'
+            echo '```'
+            tail -n 60 audit-native.txt 2>/dev/null || echo '(no output — the step did not run)'
+            echo '```'
+            echo
+            echo '### webui-leptos (`webui-leptos/Cargo.lock`)'
+            echo '```'
+            tail -n 60 audit-wasm.txt 2>/dev/null || echo '(no output — the step did not run)'
+            echo '```'
+            echo
+            echo 'Fix by bumping the affected crate (`cargo update -p <crate>`) and re-running the gates.'
+            echo 'If the advisory does not apply, record the reason in `deny.toml` rather than ignoring it silently.'
+          } > body.md
+          existing=$(gh issue list --state open --limit 50 --json number,title \
+            --jq '[.[] | select(.title | startswith("cargo audit:"))] | .[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file body.md
+          else
+            gh issue create \
+              --title "cargo audit: advisory reported on the scheduled scan" \
+              --label "type:fix" --label "priority:high" \
+              --body-file body.md
+          fi

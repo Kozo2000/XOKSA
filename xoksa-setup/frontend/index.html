@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>XOKSA</title>
+    <style>
+      :root {
+        --bg: #0f1115; --panel: #171a21; --border: #2a2f3a;
+        --text: #c9d1d9; --muted: #8b949e; --accent: #2ec896;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        height: 100%; margin: 0; background: var(--bg); color: var(--text);
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+      }
+      .center { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .75rem; }
+      .title { font-size: 1.4rem; letter-spacing: .15em; font-weight: 600; color: var(--accent); }
+      .msg { font-size: .9rem; color: var(--muted); }
+      .wrap { max-width: 640px; margin: 0 auto; padding: 28px 22px 48px; }
+      h1 { font-size: 1.3rem; letter-spacing: .12em; color: var(--accent); margin: 0 0 4px; }
+      .sub { color: var(--muted); font-size: .88rem; margin: 0 0 20px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 16px 6px; margin-bottom: 16px; }
+      .card h2 { font-size: .82rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 12px; }
+      label { display: block; font-size: .85rem; margin: 10px 0 4px; }
+      .hint { color: var(--muted); font-size: .78rem; margin: 4px 0 0; }
+      .lan-warn { color: #e0b24d; border-left: 3px solid #d9a441; padding-left: 8px; }
+      input[type=text], input[type=password], input[type=number], select {
+        width: 100%; padding: 8px 10px; background: #0c0e12; color: var(--text);
+        border: 1px solid var(--border); border-radius: 6px; font: inherit;
+      }
+      .row { display: flex; gap: 10px; } .row > * { flex: 1; }
+      .check { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: .9rem; }
+      .check input { width: auto; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 12px; }
+      .grid .check { margin: 4px 0; }
+      .numgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 12px; }
+      .numgrid label { margin: 6px 0 2px; }
+      .adv-toggle { background: transparent; color: var(--accent); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; font: inherit; cursor: pointer; margin-bottom: 16px; }
+      .actions { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+      button.primary { background: var(--accent); color: #04120c; border: 0; border-radius: 8px; padding: 11px 22px; font: inherit; font-weight: 700; cursor: pointer; }
+      button:disabled { opacity: .55; cursor: default; }
+      .o-row { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+      .o-row-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+      .o-row-actions .o_status { flex: 1; margin: 0; }
+      .o-btn { background: transparent; color: var(--accent); border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; font: inherit; font-size: .8rem; cursor: pointer; width: auto; }
+      .o-btn.o_remove { color: var(--muted); }
+      .err { color: #ff6b6b; font-size: .85rem; min-height: 1.2em; }
+      .hide { display: none; }
+      .disclaimer { border: 1px solid var(--border); border-left: 3px solid #d9a441; border-radius: 8px; padding: 11px 13px; margin: 0 0 18px; background: rgba(217,164,65,.08); }
+      .disclaimer strong { display: block; color: #e0b24d; font-size: .84rem; margin-bottom: 5px; }
+      .disclaimer p { margin: 0; color: var(--text); font-size: .8rem; line-height: 1.55; }
+      .agree { font-weight: 600; }
+      .gatebox { display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: 90%; }
+      .glabel { display: block; font-size: .85rem; margin: 0; color: var(--muted); }
+      #access_token { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
+      /* Command-result line — deliberately NOT button-styled (bordered tinted block,
+         on its own line) so it is never mistaken for a button. */
+      .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; z-index: 50; }
+      .modal-back.show { display: flex; }
+      .modal { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 22px; max-width: 420px; }
+      .modal p { margin: 0 0 16px; line-height: 1.6; }
+      .status-line { margin-top: 12px; font-size: .82rem; line-height: 1.5; padding: 8px 11px; border-radius: 6px; display: none; word-break: break-all; }
+      .status-line.show { display: block; }
+      .status-line.busy { color: var(--muted); background: rgba(139,148,158,.10); border: 1px solid var(--border); }
+      .status-line.ok { color: var(--accent); background: rgba(46,200,150,.10); border: 1px solid rgba(46,200,150,.40); }
+      .status-line.err { color: #ff6b6b; background: rgba(255,107,107,.10); border: 1px solid rgba(255,107,107,.40); }
+    </style>
+  </head>
+  <body>
+    <div id="gate" class="center">
+      <div class="title">XOKSA</div>
+      <div class="gatebox">
+        <label class="glabel" for="gate_pw" data-i18n="g_prompt">Settings password</label>
+        <input type="password" id="gate_pw" autocomplete="off" />
+        <button class="primary" id="gate_btn" data-i18n="g_unlock">Unlock</button>
+        <span class="err" id="gate_err"></span>
+      </div>
+    </div>
+
+    <div id="onboard" class="wrap hide">
+      <h1>XOKSA</h1>
+      <p class="sub" data-i18n="overview">XOKSA looks at a stock through three views: technical indicators, news, and fundamentals.</p>
+      <div class="disclaimer">
+        <strong data-i18n="disclaimer_title">⚠️ Disclaimer — please read</strong>
+        <p data-i18n="disclaimer_body">XOKSA is an information and analysis tool — not investment advice or a solicitation. It does not recommend buying or selling any security and guarantees no profit; what it shows and explains are computed values, not a promise of future results. All investment decisions and their outcomes are your own responsibility.</p>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="c_lang">Language</h2>
+        <select id="lang">
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="c_ai">AI / LLM</h2>
+        <label data-i18n="l_provider">Primary AI provider</label>
+        <select id="provider">
+          <option value="openai">OpenAI</option>
+          <option value="gemini">Gemini</option>
+          <option value="claude">Claude</option>
+          <option value="ollama" data-i18n="opt_ollama">Ollama (local)</option>
+          <option value="none" data-i18n="opt_none">None</option>
+        </select>
+        <p class="hint" data-i18n="h_keys">You can register more than one API key. Then you can compare the AIs' answers, and use Forum mode, where several AIs deliberate together. Registering a key incurs no charge; you are billed only for what you actually ask. Keys are stored in the OS keychain, never in a plain file.</p>
+        <label data-i18n="l_openai">OpenAI API key</label>
+        <input type="password" id="openai_key" autocomplete="off" />
+        <label data-i18n="l_openai_model">OpenAI model</label>
+        <input type="text" id="openai_model" placeholder="gpt-5.6-terra" autocomplete="off" />
+        <label data-i18n="l_gemini">Gemini API key</label>
+        <input type="password" id="gemini_key" autocomplete="off" />
+        <label data-i18n="l_gemini_model">Gemini model</label>
+        <input type="text" id="gemini_model" placeholder="gemini-3.5-flash" autocomplete="off" />
+        <label data-i18n="l_claude">Claude API key</label>
+        <input type="password" id="claude_key" autocomplete="off" />
+        <label data-i18n="l_claude_model">Claude model</label>
+        <input type="text" id="claude_model" placeholder="claude-sonnet-5" autocomplete="off" />
+        <p class="hint" data-i18n="h_models">Leave a model blank to use the recommended default (shown in the box).</p>
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
+          <label data-i18n="l_ollama_h" style="color: var(--muted);">Ollama (local model — optional)</label>
+          <div id="ollama_list"></div>
+          <div id="o_alias_warn" class="err hide" data-i18n="alias_dup" style="margin-top: 6px;">Duplicate alias — give each instance a unique name.</div>
+          <button type="button" id="o_add" class="o-btn" data-i18n="o_add" style="margin-top: 8px;">+ Add Ollama</button>
+          <p class="hint" data-i18n="h_ollama">Fill Model to enable a local Ollama model. Leave empty to skip. Add a row per local instance.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="c_news">News &amp; Fundamentals</h2>
+        <p class="hint" data-i18n="news_desc">News (one of XOKSA's three views). Shows a stock's recent headlines — a clue to why it moved. Titles and links only; article bodies are not fetched. Showing news requires a Brave Search API key.</p>
+        <label class="check"><input type="checkbox" id="news_enabled" checked /> <span data-i18n="l_news">Show news</span></label>
+        <div id="news_key">
+          <label data-i18n="l_brave">Brave Search API key</label>
+          <input type="password" id="brave_key" autocomplete="off" />
+        </div>
+        <p class="hint" data-i18n="fund_desc">Fundamentals (one of XOKSA's three views). Shows a company's financials (PER/PBR/ROE, earnings). US stocks use SEC EDGAR public data — the SEC asks you to identify the caller with a User-Agent (your name + email); no key or charge. Japanese stocks need a J-Quants API key.</p>
+        <label class="check"><input type="checkbox" id="fundamental_enabled" checked /> <span data-i18n="l_fund">Show fundamentals</span></label>
+        <div id="fund_keys">
+          <label data-i18n="l_sec">SEC User-Agent (name + email)</label>
+          <input type="text" id="sec_user_agent" placeholder="XOKSA you@example.com" />
+          <label data-i18n="l_jq">J-Quants API key</label>
+          <input type="password" id="jquants_key" autocomplete="off" />
+        </div>
+        <label data-i18n="l_alias_csv" style="margin-top:12px">Japanese stock name file (Excel/CSV, optional)</label>
+        <div class="row">
+          <input type="text" id="alias_csv" placeholder="…/data_j.xls" autocomplete="off" />
+          <button type="button" id="alias_csv_browse" class="o-btn" data-i18n="alias_csv_browse" style="flex:0 0 auto">Browse…</button>
+        </div>
+        <p class="hint" data-i18n="h_alias_csv">Point at the JPX "Listed Securities List" (data_j.xls) directly — no Excel conversion needed. A CSV works too (UTF-8). Column 2 = code, column 3 = name.</p>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="c_conn">Connection</h2>
+        <label class="check"><input type="checkbox" id="lan_access" /> <span data-i18n="l_lan">Allow LAN access (bind 0.0.0.0)</span></label>
+        <p class="hint lan-warn" data-i18n="lan_warn">Off by default (loopback only). When on, other devices on your network can open the dashboard — sign-in with the access token is always required (the engine generates one automatically and refuses unauthenticated access), and only private-network addresses are accepted. Share the token only with devices you trust, and keep this on trusted networks (LAN/VPN) — never the open internet.</p>
+
+        <label class="glabel" style="margin-top:14px" data-i18n="l_port">Port</label>
+        <input type="number" id="serve_port" min="1" max="65535" placeholder="8787" />
+        <p class="hint" data-i18n="h_port">The port the dashboard listens on (default 8787). Change it if another program already uses that port; remote devices must use the same number.</p>
+
+        <label class="glabel" style="margin-top:14px" data-i18n="l_token">Access token (paste into each UI)</label>
+        <div class="row">
+          <input type="text" id="access_token" readonly placeholder="(not generated)" />
+          <button type="button" id="tok_gen" class="o-btn" data-i18n="tok_gen" style="flex:0 0 auto">Generate</button>
+          <button type="button" id="tok_copy" class="o-btn" data-i18n="tok_copy" style="flex:0 0 auto">Copy</button>
+        </div>
+        <p class="hint" data-i18n="h_token">Generate here, then copy it into each UI (desktop IP+token field, browser /login).</p>
+
+        <div class="o-row-actions" style="margin-top:12px">
+          <button type="button" id="eng_restart" class="o-btn" data-i18n="eng_restart">Restart engine</button>
+        </div>
+        <div class="status-line" id="eng_status"></div>
+        <p class="hint" data-i18n="h_restart">Save first, then restart: a new port or access token only takes effect on an engine that started after the change.</p>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="c_notify">Chat notifications</h2>
+        <div id="notify_list"></div>
+        <button type="button" id="n_add" class="o-btn" data-i18n="n_add" style="margin-top: 8px;">+ Add channel</button>
+        <p class="hint" data-i18n="h_notify">Optional. While the app is running, alerts push a one-line message to your chat (Slack / Discord / Google Chat / LINE). The secret (webhook URL, or LINE bot token) is stored in your OS keychain — leave it blank to keep the one already saved. Define watch rules in xoksa.env or with /alert in the dashboard chat.</p>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="c_pw">Settings password</h2>
+        <label class="glabel" data-i18n="l_chpw">Change settings password (blank = keep)</label>
+        <input type="password" id="new_pw" autocomplete="off" />
+        <p class="hint" data-i18n="h_pw">This password protects this settings app only. It is not the access token and is never sent anywhere.</p>
+      </div>
+
+      <button class="adv-toggle" id="adv_toggle" data-i18n="adv_show">Advanced settings ▸</button>
+      <div id="advanced" class="hide">
+        <p class="hint" style="margin:0 0 14px" data-i18n="adv_note">These are for advanced users. For what each parameter means and how to set the numbers, see the Indicator Guide (analysis-guide.md) in the manuals zip that ships with XOKSA.</p>
+        <div class="card">
+          <h2 data-i18n="c_ind">Indicators</h2>
+          <div class="grid">
+            <label class="check"><input type="checkbox" id="ind_ema" checked /> EMA</label>
+            <label class="check"><input type="checkbox" id="ind_sma" checked /> SMA</label>
+            <label class="check"><input type="checkbox" id="ind_bollinger" checked /> Bollinger</label>
+            <label class="check"><input type="checkbox" id="ind_roc" checked /> ROC</label>
+            <label class="check"><input type="checkbox" id="ind_adx" checked /> ADX</label>
+            <label class="check"><input type="checkbox" id="ind_stochastics" checked /> Stochastics</label>
+            <label class="check"><input type="checkbox" id="ind_fibonacci" checked /> Fibonacci</label>
+            <label class="check"><input type="checkbox" id="ind_vwap" checked /> VWAP</label>
+            <label class="check"><input type="checkbox" id="ind_ichimoku" checked /> Ichimoku</label>
+          </div>
+        </div>
+        <div class="card">
+          <h2 data-i18n="c_thr">Thresholds</h2>
+          <div class="numgrid">
+            <div><label data-i18n="l_buyrsi">Buy RSI</label><input type="number" id="buy_rsi" step="1" value="30" /></div>
+            <div><label data-i18n="l_sellrsi">Sell RSI</label><input type="number" id="sell_rsi" step="1" value="70" /></div>
+            <div><label data-i18n="l_macdlow">MACD diff low</label><input type="number" id="macd_diff_low" step="0.1" value="2" /></div>
+            <div><label data-i18n="l_macdmid">MACD diff mid</label><input type="number" id="macd_diff_mid" step="0.1" value="10" /></div>
+            <div><label data-i18n="l_macdext">MACD diff extreme</label><input type="number" id="macd_diff_extreme" step="1" value="100" /></div>
+          </div>
+          <label class="check" style="margin-top:10px"><input type="checkbox" id="macd_minus_ok" /> <span data-i18n="l_macdminus">Allow MACD-minus (macd_minus_ok)</span></label>
+        </div>
+        <div class="card">
+          <h2 data-i18n="c_wt">Indicator weights</h2>
+          <div class="numgrid">
+            <div><label>Basic</label><input type="number" id="weight_basic" step="0.5" value="2" /></div>
+            <div><label>EMA</label><input type="number" id="weight_ema" step="0.5" value="1" /></div>
+            <div><label>SMA</label><input type="number" id="weight_sma" step="0.5" value="1" /></div>
+            <div><label>Bollinger</label><input type="number" id="weight_bollinger" step="0.5" value="1" /></div>
+            <div><label>ROC</label><input type="number" id="weight_roc" step="0.5" value="1" /></div>
+            <div><label>ADX</label><input type="number" id="weight_adx" step="0.5" value="1" /></div>
+            <div><label>Stochastics</label><input type="number" id="weight_stochastics" step="0.5" value="1" /></div>
+            <div><label>Fibonacci</label><input type="number" id="weight_fibonacci" step="0.5" value="1" /></div>
+            <div><label>VWAP</label><input type="number" id="weight_vwap" step="0.5" value="1" /></div>
+            <div><label>Ichimoku</label><input type="number" id="weight_ichimoku" step="0.5" value="1" /></div>
+          </div>
+          <p class="hint" data-i18n="h_wt">Higher weight = more influence on the composite score.</p>
+        </div>
+        <div class="card">
+          <h2 data-i18n="c_calc">Indicator parameters</h2>
+          <div class="numgrid">
+            <div><label data-i18n="l_emashort">EMA short</label><input type="number" id="ema_short_period" step="1" value="5" /></div>
+            <div><label data-i18n="l_emalong">EMA long</label><input type="number" id="ema_long_period" step="1" value="20" /></div>
+            <div><label data-i18n="l_smashort">SMA short</label><input type="number" id="sma_short_period" step="1" value="5" /></div>
+            <div><label data-i18n="l_smalong">SMA long</label><input type="number" id="sma_long_period" step="1" value="20" /></div>
+            <div><label data-i18n="l_adxp">ADX period</label><input type="number" id="adx_period" step="1" value="14" /></div>
+            <div><label data-i18n="l_rocp">ROC period</label><input type="number" id="roc_period" step="1" value="10" /></div>
+            <div><label data-i18n="l_stochp">Stochastics period</label><input type="number" id="stochastics_period" step="1" value="14" /></div>
+            <div><label data-i18n="l_bollp">Bollinger period</label><input type="number" id="bollinger_period" step="1" value="20" /></div>
+            <div><label data-i18n="l_bollsd">Bollinger stddev ×</label><input type="number" id="bollinger_stddev_multiplier" step="0.1" value="2" /></div>
+            <div><label data-i18n="l_bbpct">Bollinger bandwidth %</label><input type="number" id="bb_bandwidth_squeeze_pct" step="0.5" value="8" /></div>
+            <div><label data-i18n="l_ten">Ichimoku Tenkan</label><input type="number" id="ichimoku_tenkan_period" step="1" value="9" /></div>
+            <div><label data-i18n="l_kij">Ichimoku Kijun</label><input type="number" id="ichimoku_kijun_period" step="1" value="26" /></div>
+            <div><label data-i18n="l_vwapp">VWAP period</label><input type="number" id="vwap_period" step="1" value="14" /></div>
+            <div><label data-i18n="l_fibratio">Fibonacci neutral band</label><input type="number" id="fibonacci_neutral_ratio" step="0.01" min="0" max="0.5" value="0.05" /></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="check agree" id="agree_row">
+        <input type="checkbox" id="agree" />
+        <label for="agree" style="margin:0" data-i18n="agree">I have read and agree: this is not investment advice, and investing is at my own risk.</label>
+      </div>
+      <div class="actions">
+        <button class="primary" id="submit" data-i18n="btn">Save &amp; Start</button>
+        <button type="button" class="o-btn" id="quit" data-i18n="btn_quit">Quit</button>
+        <span class="err" id="err"></span>
+      </div>
+
+      <!-- Unsaved-changes confirmation. An in-page dialog, not window.confirm():
+           the Tauri WebView suppresses confirm() (see the 2.7.1 chat 消去 fix). -->
+      <div class="modal-back" id="quit_modal">
+        <div class="modal">
+          <p id="quit_msg" data-i18n="quit_msg">You have unsaved changes. Quit without saving?</p>
+          <div class="actions" style="justify-content:flex-end">
+            <button type="button" class="o-btn" id="quit_cancel" data-i18n="quit_cancel">Cancel</button>
+            <button type="button" class="primary" id="quit_ok" data-i18n="quit_ok">Quit without saving</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // The OS locale — used ONLY before the config is known (the gate screen and
+      // the first render). Once unlocked, `LANG` from the config wins. One place,
+      // so this fallback cannot quietly become a second source of truth.
+      const osLocaleLang = () =>
+        (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
+
+      const invoke = window.__TAURI__.core.invoke;
+      const $ = (id) => document.getElementById(id);
+      const val = (id) => $(id).value.trim();
+      const numOr = (id, def) => { const n = parseFloat($(id).value); return Number.isFinite(n) ? n : def; };
+
+      const I18N = {
+        en: {
+          overview: "XOKSA looks at a stock through three views: technical indicators, news, and fundamentals.",
+          disclaimer_title: "⚠️ Disclaimer — please read",
+          disclaimer_body: "XOKSA is an information and analysis tool — not investment advice or a solicitation. It does not recommend buying or selling any security and guarantees no profit; what it shows and explains are computed values, not a promise of future results. All investment decisions and their outcomes are your own responsibility.",
+          agree: "I have read and agree: this is not investment advice, and investing is at my own risk.",
+          agree_err: "Please agree to the disclaimer to continue.",
+          c_lang: "言語 / Language", c_ai: "AI / LLM", l_provider: "Primary AI provider",
+          opt_ollama: "Ollama (local)", opt_none: "None",
+          h_keys: "You can register more than one API key. Then you can compare the AIs' answers, and use Forum mode, where several AIs deliberate together. Registering a key incurs no charge; you are billed only for what you actually ask. Keys are stored in the OS keychain, never in a plain file.",
+          l_openai: "OpenAI API key", l_gemini: "Gemini API key", l_claude: "Claude API key",
+          l_openai_model: "OpenAI model", l_gemini_model: "Gemini model", l_claude_model: "Claude model",
+          h_models: "Leave a model blank to use the recommended default (shown in the box).",
+          l_ollama_h: "Ollama (local model — optional)",
+          l_alias: "Alias (optional name)", l_model: "Model", l_host: "Host", l_port: "Port",
+          h_ollama: "Fill Model to enable a local Ollama model. Leave empty to skip. Add a row per local instance.",
+          o_add: "+ Add Ollama", o_check: "Fetch models", o_remove: "Remove",
+          o_checking: "Checking…", o_ok: "{n} model(s) found", o_unreach: "Not reachable (enter manually)",
+          o_pick: "— select a model —", o_manual: "Manual entry…",
+          alias_dup: "Duplicate alias — give each instance a unique name.",
+          c_notify: "Chat notifications",
+          n_add: "+ Add channel",
+          h_notify: "Optional. While the app is running, alerts push a one-line message to your chat (Slack / Discord / Google Chat / LINE). The secret (webhook URL, or LINE bot token) is stored in your OS keychain — leave it blank to keep the one already saved. Define watch rules in xoksa.env or with /alert in the dashboard chat.",
+          l_nkind: "Platform", l_nname: "Name (used by /alert)", l_nto: "LINE destination id", l_nsecret: "Secret (webhook URL / LINE token)",
+          n_secret_ph: "leave blank to keep the saved secret",
+          n_test: "Test", n_test_sending: "Sending…", n_test_ok: "✅ sent — check your chat", n_test_fail: "❌ failed:", n_test_need_secret: "Enter a secret to test.",
+          c_news: "News & Fundamentals",
+          news_desc: "News (one of XOKSA's three views). Shows a stock's recent headlines — a clue to why it moved. Titles and links only; article bodies are not fetched. Showing news requires a Brave Search API key.",
+          l_news: "Show news",
+          l_brave: "Brave Search API key",
+          fund_desc: "Fundamentals (one of XOKSA's three views). Shows a company's financials (PER/PBR/ROE, earnings). US stocks use SEC EDGAR public data — the SEC asks you to identify the caller with a User-Agent (your name + email); no key or charge. Japanese stocks need a J-Quants API key.",
+          l_fund: "Show fundamentals",
+          l_sec: "SEC User-Agent (name + email)", l_jq: "J-Quants API key",
+          l_alias_csv: "Japanese stock name file (Excel/CSV, optional)", alias_csv_browse: "Browse…",
+          h_alias_csv: "Point at the JPX 'Listed Securities List' (data_j.xls) directly — no Excel conversion needed. A CSV works too (UTF-8). Column 2 = code, column 3 = name.",
+          c_conn: "Connection",
+          l_lan: "Allow LAN access (bind 0.0.0.0)",
+          lan_warn: "Off by default (loopback only). When on, other devices on your network can open the dashboard — sign-in with the access token is always required (the engine generates one automatically and refuses unauthenticated access), and only private-network addresses are accepted. Share the token only with devices you trust, and keep this on trusted networks (LAN/VPN) — never the open internet.",
+          adv_show: "Advanced settings ▸", adv_hide: "Advanced settings ▾",
+          c_ind: "Indicators", c_thr: "Thresholds", c_wt: "Indicator weights",
+          l_buyrsi: "Buy RSI", l_sellrsi: "Sell RSI", l_macdlow: "MACD diff low",
+          l_macdmid: "MACD diff mid", l_macdext: "MACD diff extreme",
+          l_macdminus: "Allow MACD-minus (macd_minus_ok)",
+          h_wt: "Higher weight = more influence on the composite score.",
+          c_calc: "Indicator parameters",
+          l_emashort: "EMA short", l_emalong: "EMA long", l_smashort: "SMA short", l_smalong: "SMA long",
+          l_adxp: "ADX period", l_rocp: "ROC period", l_stochp: "Stochastics period", l_bollp: "Bollinger period",
+          l_bollsd: "Bollinger stddev ×", l_bbpct: "Bollinger bandwidth %",
+          l_ten: "Ichimoku Tenkan", l_kij: "Ichimoku Kijun", l_vwapp: "VWAP period", l_fibratio: "Fibonacci neutral band (0-0.5)",
+          adv_note: "These are for advanced users. For what each parameter means and how to set the numbers, see the Indicator Guide (analysis-guide.md) in the manuals zip that ships with XOKSA.",
+          btn: "Save & Start", btn_busy: "Setting up…", keys_keep_note: "Leave a key blank to keep the one already saved.",
+          g_prompt: "Settings password", g_unlock: "Unlock", g_err: "Wrong password.",
+          c_pw: "Settings password", l_token: "Access token (paste into each UI)",
+          tok_gen: "Generate", tok_copy: "Copy", tok_copied: "Copied",
+          h_token: "Generate here, then copy it into each UI (desktop IP+token field, browser /login).",
+          eng_restart: "Restart engine",
+          eng_starting: "Restarting…", eng_restarted: "Engine restarted", eng_failed: "Failed:",
+          l_port: "Port",
+          h_port: "The port the dashboard listens on (default 8787). Change it if another program already uses that port; remote devices must use the same number.",
+          h_restart: "Save first, then restart: a new port or access token only takes effect on an engine that started after the change.",
+          h_pw: "This password protects this settings app only. It is not the access token and is never sent anywhere.",
+          l_chpw: "Change settings password (blank = keep)",
+          btn_save: "Save", saved_ok: "Saved.", key_set: "(set)",
+          btn_quit: "Quit",
+          quit_msg: "You have unsaved changes. Quit without saving?",
+          quit_cancel: "Cancel", quit_ok: "Quit without saving",
+        },
+        ja: {
+          overview: "XOKSA は3つの視点で銘柄を見ます：テクニカル指標・ニュース・ファンダメンタル。",
+          disclaimer_title: "⚠️ 免責事項 — 必ずお読みください",
+          disclaimer_body: "XOKSA は情報提供・分析ツールであり、投資助言・勧誘ではありません。特定の銘柄・金融商品の売買を推奨するものではなく、利益を保証しません。表示・解説は計算済みの確定データとその説明であって、将来の結果を約束するものではありません。投資判断とその結果は、すべてご自身の責任で行ってください。",
+          agree: "上記に同意します：これは投資助言ではなく、投資は自己責任であることを理解しました。",
+          agree_err: "続けるには免責事項に同意してください。",
+          c_lang: "言語 / Language", c_ai: "AI / LLM", l_provider: "主に使う AI",
+          opt_ollama: "Ollama（ローカル）", opt_none: "使わない",
+          h_keys: "各種 API のキーは複数登録できます。意見を見比べたり、AI どうしが協議する Forum モードで多角的に判断できます。登録するだけでは請求されません（使った分だけ課金されます）。キーは OS キーチェーンに保管され、平文ファイルには残りません。",
+          l_openai: "OpenAI API キー", l_gemini: "Gemini API キー", l_claude: "Claude API キー",
+          l_openai_model: "OpenAI モデル", l_gemini_model: "Gemini モデル", l_claude_model: "Claude モデル",
+          h_models: "モデルを空欄にすると、推奨の既定（枠内に表示）を使用します。",
+          l_ollama_h: "Ollama（ローカルモデル・任意）",
+          l_alias: "エイリアス（任意の名前）", l_model: "モデル", l_host: "ホスト", l_port: "ポート",
+          h_ollama: "モデルを入力するとローカル Ollama を有効化。空欄でスキップ。複数台はこの下に行を追加。",
+          o_add: "＋ Ollama を追加", o_check: "モデル取得（接続確認）", o_remove: "削除",
+          o_checking: "確認中…", o_ok: "{n} 件のモデルを検出", o_unreach: "接続できません（手入力）",
+          o_pick: "— モデルを選択 —", o_manual: "手入力…",
+          alias_dup: "エイリアスが重複しています。各インスタンスに固有の名前を付けてください。",
+          c_notify: "チャット通知",
+          n_add: "＋ チャンネルを追加",
+          h_notify: "任意。アプリ起動中、アラート成立時にチャット（Slack / Discord / Google Chat / LINE）へ1行の通知をプッシュします。secret（Webhook URL または LINE Bot トークン）は OS キーチェーンに保管されます。空欄のままにすると保存済みの secret を維持します。監視ルールは xoksa.env またはダッシュボードのチャットで /alert から設定します。",
+          l_nkind: "プラットフォーム", l_nname: "名前（/alert で指定）", l_nto: "LINE 宛先 ID", l_nsecret: "secret（Webhook URL / LINE トークン）",
+          n_secret_ph: "空欄で保存済みの secret を維持",
+          n_test: "テスト送信", n_test_sending: "送信中…", n_test_ok: "✅ 送信しました — チャットを確認", n_test_fail: "❌ 失敗:", n_test_need_secret: "テストには secret を入力してください。",
+          c_news: "ニュース・ファンダメンタル",
+          news_desc: "ニュース（XOKSA の3つの視点の1つ）。銘柄の最近の見出しを表示し、「なぜ今動いたか」の手がかりになります。本文は取得せず、見出しと元記事リンクのみ。表示には Brave Search の API キーが必要です。",
+          l_news: "ニュースを表示",
+          l_brave: "Brave Search の API キー",
+          fund_desc: "ファンダメンタル（XOKSA の3つの視点の1つ）。企業の財務（PER・PBR・ROE や決算など）を表示します。米国株は SEC EDGAR の公開データを使います（SEC の決まりで、呼び出す人を示す User-Agent＝あなたの名前＋メールを入れます。キーや料金はありません）。日本株は J-Quants の API キーが必要です。",
+          l_fund: "ファンダメンタルを表示",
+          l_sec: "SEC User-Agent（名前＋メール）", l_jq: "J-Quants の API キー",
+          l_alias_csv: "日本株の銘柄名ファイル（Excel/CSV・任意）", alias_csv_browse: "参照…",
+          h_alias_csv: "JPX の「上場銘柄一覧」（data_j.xls）をそのまま指定できます（Excel 変換不要）。CSV も可（UTF-8）。2列目＝コード・3列目＝会社名。",
+          c_conn: "接続",
+          l_lan: "LAN アクセスを許可（0.0.0.0 でバインド）",
+          lan_warn: "既定はオフ（ループバックのみ）。オンにすると同じネットワークの別端末からダッシュボードを開けます——アクセスには常にアクセストークンが必要です（エンジンが自動生成し、未認証の接続は拒否します）。接続元はプライベートネットワークのアドレスのみ許可されます。トークンは信頼できる端末にだけ渡し、利用は信頼できるネットワーク（LAN／VPN）内に限ってください。生の公開インターネットには置かないでください。",
+          adv_show: "詳細設定 ▸", adv_hide: "詳細設定 ▾",
+          c_ind: "指標", c_thr: "閾値", c_wt: "指標ウェイト",
+          l_buyrsi: "買い RSI", l_sellrsi: "売り RSI", l_macdlow: "MACD 差 低",
+          l_macdmid: "MACD 差 中", l_macdext: "MACD 差 極",
+          l_macdminus: "MACD マイナス許容（macd_minus_ok）",
+          h_wt: "ウェイトが大きいほど総合スコアへの影響が大きくなります。",
+          c_calc: "指標パラメータ",
+          l_emashort: "EMA 短期", l_emalong: "EMA 長期", l_smashort: "SMA 短期", l_smalong: "SMA 長期",
+          l_adxp: "ADX 期間", l_rocp: "ROC 期間", l_stochp: "ストキャス 期間", l_bollp: "ボリンジャー 期間",
+          l_bollsd: "ボリンジャー 標準偏差 ×", l_bbpct: "ボリンジャー バンド幅 %",
+          l_ten: "一目 転換線", l_kij: "一目 基準線", l_vwapp: "VWAP 期間", l_fibratio: "フィボナッチ 中立帯（0〜0.5）",
+          adv_note: "ここは上級者向けです。各パラメータの意味と数値の決め方は、XOKSA に同梱のマニュアル ZIP に入っている指標ガイド（analysis-guide.md）を参照してください。",
+          btn: "保存して開始", btn_busy: "設定中…", keys_keep_note: "キー欄を空欄にすると、保存済みのキーをそのまま保持します。",
+          g_prompt: "設定パスワード", g_unlock: "解錠", g_err: "パスワードが違います。",
+          c_pw: "設定パスワード", l_token: "アクセストークン（各UIに貼って使う）",
+          tok_gen: "生成／再生成", tok_copy: "コピー", tok_copied: "コピーしました",
+          h_token: "ここで生成し、コピーして各UI（デスクトップの IP＋トークン欄、ブラウザの /login）に貼ります。",
+          eng_restart: "エンジンを再起動",
+          eng_starting: "再起動中…", eng_restarted: "エンジンを再起動しました", eng_failed: "失敗:",
+          l_port: "ポート",
+          h_port: "ダッシュボードが待ち受けるポート（既定 8787）。他のプログラムが使っている場合は変更します。リモート端末からは同じ番号で接続します。",
+          h_restart: "先に保存してから再起動します。ポートやアクセストークンの変更は、変更後に起動したエンジンにだけ反映されます。",
+          h_pw: "この設定アプリを開くためのパスワードです。アクセストークンとは別物で、どこにも送信されません。",
+          l_chpw: "設定パスワードの変更（空欄で変更なし）",
+          btn_save: "保存", saved_ok: "保存しました。", key_set: "（設定済）",
+          btn_quit: "終了",
+          quit_msg: "保存していない変更があります。保存せずに終了しますか。",
+          quit_cancel: "キャンセル", quit_ok: "保存せずに終了",
+        },
+      };
+
+      let advOpen = false;
+
+      function renderLang(lang) {
+        const d = I18N[lang] || I18N.en;
+        document.documentElement.lang = lang;
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+          const k = el.getAttribute("data-i18n");
+          if (d[k] != null) el.textContent = d[k];
+        });
+        // Placeholders translate on switch too (dynamic rows + i18n placeholders).
+        document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
+          const k = el.getAttribute("data-i18n-ph");
+          if (d[k] != null) el.placeholder = d[k];
+        });
+        // "(set)" marker on fields whose value is already stored (kept on save).
+        document.querySelectorAll("[data-keyset]").forEach((el) => {
+          el.placeholder = "•••••••• " + (d.key_set || "(set)");
+        });
+        $("adv_toggle").textContent = advOpen ? d.adv_hide : d.adv_show;
+        // Settings app: Save just saves (no app restart); a blank key keeps the
+        // stored value, so note that on the keys hint.
+        $("submit").textContent = d.btn_save || d.btn;
+        document.querySelectorAll('[data-i18n="h_keys"]').forEach((el) => {
+          el.textContent = d.h_keys + " " + (d.keys_keep_note || "");
+        });
+      }
+
+      // Ollama is configured as a repeatable list of instances (host/port/model),
+      // each written to OLLAMA_<n>_* on save. The backend already reads/writes any
+      // number; the form gathers every row into the `ollama` array.
+      const rq = (row, sel) => row.querySelector(sel);
+      const rowVal = (row, sel) => rq(row, sel).value.trim();
+
+      function ollamaRows() {
+        return Array.from(document.querySelectorAll("#ollama_list .o-row"));
+      }
+
+      // Model is chosen from a dropdown (selection-based). "Fetch models" fills it
+      // with the instance's installed models; a "manual entry" option reveals a
+      // text field for when Ollama is not running yet (webviews block prompt()).
+      const MANUAL = "__manual__";
+      function toggleManual(row) {
+        const isManual = rq(row, ".o_model").value === MANUAL;
+        rq(row, ".o_model_manual").classList.toggle("hide", !isManual);
+      }
+      // Refresh the model <select>: keep placeholder + manual, list the given
+      // models, keep any already-selected model even if not in the list.
+      function setModelOptions(row, models) {
+        const d = I18N[val("lang")] || I18N.en;
+        const sel = rq(row, ".o_model");
+        const prev = sel.value;
+        sel.innerHTML = "";
+        sel.appendChild(new Option(d.o_pick, ""));
+        const list = (models || []).slice();
+        if (prev && prev !== MANUAL && !list.includes(prev)) list.unshift(prev);
+        for (const m of list) sel.appendChild(new Option(m, m));
+        sel.appendChild(new Option(d.o_manual, MANUAL));
+        sel.value = prev && (prev === MANUAL || list.includes(prev)) ? prev : "";
+        toggleManual(row);
+      }
+
+      // Create one instance row (optionally prefilled) and wire its controls.
+      function addOllamaRow(v) {
+        const d = I18N[val("lang")] || I18N.en;
+        const row = document.createElement("div");
+        row.className = "o-row";
+        row.innerHTML =
+          '<div class="row">' +
+          '<div><label data-i18n="l_alias">' + d.l_alias + '</label><input type="text" class="o_alias" placeholder="local" /></div>' +
+          '<div><label data-i18n="l_model">' + d.l_model + '</label>' +
+          '<select class="o_model"></select>' +
+          '<input type="text" class="o_model_manual hide" placeholder="llama3" autocomplete="off" style="margin-top:6px;" /></div>' +
+          '</div>' +
+          '<div class="row">' +
+          '<div><label data-i18n="l_host">' + d.l_host + '</label><input type="text" class="o_host" placeholder="127.0.0.1" /></div>' +
+          '<div><label data-i18n="l_port">' + d.l_port + '</label><input type="text" class="o_port" placeholder="11434" /></div>' +
+          '</div>' +
+          '<div class="o-row-actions">' +
+          '<button type="button" class="o-btn o_check" data-i18n="o_check">' + d.o_check + '</button>' +
+          '<span class="o_status hint"></span>' +
+          '<button type="button" class="o-btn o_remove" data-i18n="o_remove">' + d.o_remove + '</button>' +
+          '</div>';
+        if (v) {
+          rq(row, ".o_alias").value = v.alias || "";
+          rq(row, ".o_host").value = v.host || "";
+          rq(row, ".o_port").value = v.port || "";
+        } else {
+          // New blank row: give it a unique alias so instances never collide
+          // (a duplicate alias would make the picker run the wrong model).
+          rq(row, ".o_alias").value = uniqueAlias();
+        }
+        setModelOptions(row, []);
+        if (v && v.model) { setModelOptions(row, [v.model]); rq(row, ".o_model").value = v.model; }
+        toggleManual(row);
+        rq(row, ".o_alias").addEventListener("input", validateAliases);
+        rq(row, ".o_model").addEventListener("change", () => toggleManual(row));
+        rq(row, ".o_check").addEventListener("click", () => fetchModelsForRow(row));
+        rq(row, ".o_remove").addEventListener("click", () => { row.remove(); ensureOllamaRow(); validateAliases(); });
+        $("ollama_list").appendChild(row);
+        validateAliases();
+        return row;
+      }
+
+      // Chat-notification channels: a repeatable list, each written to
+      // NOTIFY_<n>_* on save (KIND/NAME/TO to xoksa.env; SECRET to the keychain).
+      // The `to` field applies to LINE only, so it is shown only for that kind.
+      function notifyRows() {
+        return Array.from(document.querySelectorAll("#notify_list .o-row"));
+      }
+      function toggleNotifyTo(row) {
+        const isLine = rq(row, ".n_kind").value === "line";
+        rq(row, ".n_to_wrap").classList.toggle("hide", !isLine);
+      }
+      function addNotifyRow(v) {
+        const d = I18N[val("lang")] || I18N.en;
+        const row = document.createElement("div");
+        row.className = "o-row";
+        row.innerHTML =
+          '<div class="row">' +
+          '<div><label data-i18n="l_nkind">' + d.l_nkind + '</label><select class="n_kind">' +
+          '<option value="slack">Slack</option>' +
+          '<option value="discord">Discord</option>' +
+          '<option value="gchat">Google Chat</option>' +
+          '<option value="line">LINE</option>' +
+          '</select></div>' +
+          '<div><label data-i18n="l_nname">' + d.l_nname + '</label><input type="text" class="n_name" /></div>' +
+          '</div>' +
+          '<div class="row n_to_wrap hide">' +
+          '<div><label data-i18n="l_nto">' + d.l_nto + '</label><input type="text" class="n_to" placeholder="U0123456789abcdef" /></div>' +
+          '</div>' +
+          '<div><label data-i18n="l_nsecret">' + d.l_nsecret + '</label><input type="password" class="n_secret" autocomplete="off" data-i18n-ph="n_secret_ph" placeholder="' + d.n_secret_ph + '" /></div>' +
+          '<div class="o-row-actions">' +
+          '<button type="button" class="o-btn n_test" data-i18n="n_test">' + d.n_test + '</button>' +
+          '<span class="o_status hint"></span>' +
+          '<button type="button" class="o-btn n_remove" data-i18n="o_remove">' + d.o_remove + '</button>' +
+          '</div>';
+        if (v) {
+          if (v.kind) rq(row, ".n_kind").value = v.kind;
+          rq(row, ".n_name").value = v.name || "";
+          rq(row, ".n_to").value = v.to || "";
+          if (v.n) row.dataset.n = v.n; // saved channel → Test can reuse its stored secret
+          if (v.secret_set) {
+            const sec = rq(row, ".n_secret");
+            sec.removeAttribute("data-i18n-ph");
+            sec.setAttribute("data-keyset", "1");
+          }
+        }
+        toggleNotifyTo(row);
+        rq(row, ".n_kind").addEventListener("change", () => toggleNotifyTo(row));
+        rq(row, ".n_test").addEventListener("click", () => testNotifyRow(row));
+        rq(row, ".n_remove").addEventListener("click", () => row.remove());
+        $("notify_list").appendChild(row);
+        return row;
+      }
+
+      // Send a test message to a channel using the secret typed in the row, via
+      // the engine (`xoksa test-notify`). Tests before the form is saved.
+      async function testNotifyRow(row) {
+        const d = I18N[val("lang")] || I18N.en;
+        const status = rq(row, ".o_status");
+        const secret = rq(row, ".n_secret").value.trim();
+        // A saved channel (n > 0) can be tested with its stored secret; a brand-new
+        // channel needs a secret typed in.
+        const n = parseInt(row.dataset.n || "0", 10) || 0;
+        if (!secret && !n) { status.textContent = d.n_test_need_secret; return; }
+        status.textContent = d.n_test_sending;
+        try {
+          await invoke("test_notify", {
+            kind: rq(row, ".n_kind").value,
+            to: rowVal(row, ".n_to"),
+            secret,
+            n,
+          });
+          status.textContent = d.n_test_ok;
+        } catch (e) {
+          status.textContent = d.n_test_fail + " " + String(e);
+        }
+      }
+
+      // The LLM picker addresses an instance by alias only (ollama:<alias>), so
+      // two rows with the same alias resolve to the FIRST match — the picker would
+      // silently run the wrong model. Blank counts as "local" (the save default),
+      // so a blank + a "local" row collide too. Flag duplicates red; save is
+      // blocked while any remain (see submit).
+      const aliasOf = (r) => (rowVal(r, ".o_alias") || "local").toLowerCase();
+      function validateAliases() {
+        const rows = ollamaRows();
+        const counts = {};
+        rows.forEach((r) => { counts[aliasOf(r)] = (counts[aliasOf(r)] || 0) + 1; });
+        let dup = false;
+        rows.forEach((r) => {
+          const isDup = counts[aliasOf(r)] > 1;
+          const inp = rq(r, ".o_alias");
+          inp.style.borderColor = isDup ? "#ff6b6b" : "";
+          inp.style.color = isDup ? "#ff6b6b" : "";
+          if (isDup) dup = true;
+        });
+        const warn = $("o_alias_warn");
+        if (warn) warn.classList.toggle("hide", !dup);
+        return dup;
+      }
+
+      // A default alias not already used by another row: local, local2, local3…
+      function uniqueAlias() {
+        const used = new Set(ollamaRows().map(aliasOf));
+        if (!used.has("local")) return "local";
+        let n = 2;
+        while (used.has("local" + n)) n++;
+        return "local" + n;
+      }
+
+      // Keep at least one row so the Ollama fields are always visible.
+      function ensureOllamaRow() {
+        if (!ollamaRows().length) addOllamaRow();
+      }
+
+      // Ollama placeholders are NOT submitted; when Ollama is the chosen provider,
+      // fill the first row with real defaults so what the user sees is what gets
+      // saved (never provider=ollama with no instance — a broken config).
+      function fillOllamaDefaultsIfEmpty() {
+        ensureOllamaRow();
+        const row = ollamaRows()[0];
+        if (!rowVal(row, ".o_alias")) rq(row, ".o_alias").value = "local";
+        if (!rowVal(row, ".o_host")) rq(row, ".o_host").value = "127.0.0.1";
+        if (!rowVal(row, ".o_port")) rq(row, ".o_port").value = "11434";
+      }
+
+      // Query one row's Ollama for its installed models (reachability check): fill
+      // that row's model dropdown, auto-select the first, and show a status.
+      async function fetchModelsForRow(row) {
+        const d = I18N[val("lang")] || I18N.en;
+        const status = rq(row, ".o_status");
+        status.textContent = d.o_checking;
+        status.style.color = "var(--muted)";
+        let models = [];
+        try {
+          models = await invoke("list_ollama_models", {
+            host: rowVal(row, ".o_host") || "127.0.0.1",
+            port: rowVal(row, ".o_port") || "11434",
+          });
+        } catch (e) { models = []; }
+        const found = (models && models.length) || 0;
+        const sel = rq(row, ".o_model");
+        const hadSelection = sel.value && sel.value !== MANUAL;
+        setModelOptions(row, models);
+        if (found && !hadSelection) sel.value = models[0];
+        toggleManual(row);
+        if (found) {
+          status.textContent = (d.o_ok || "{n}").replace("{n}", found);
+          status.style.color = "var(--accent)";
+        } else {
+          status.textContent = d.o_unreach;
+          status.style.color = "var(--muted)";
+        }
+      }
+
+      function updateNewsFundView() {
+        $("news_key").classList.toggle("hide", !$("news_enabled").checked);
+        $("fund_keys").classList.toggle("hide", !$("fundamental_enabled").checked);
+      }
+
+      // Password gate → on success, reveal + prefill the form and load the token.
+      async function tryUnlock() {
+        const d = I18N[$("lang").value] || I18N.en;
+        $("gate_err").textContent = "";
+        const pw = $("gate_pw").value;
+        try {
+          const ok = await invoke("verify_password", { password: pw });
+          $("gate_pw").value = "";
+          if (ok) { await unlock(); } else { $("gate_err").textContent = d.g_err; }
+        } catch (e) { $("gate_err").textContent = String(e); }
+      }
+
+      async function unlock() {
+        $("gate").classList.add("hide");
+        $("onboard").classList.remove("hide");
+        // Default to the OS/browser locale; prefill overrides only if the saved
+        // config specifies a language (so an English-region user is not stranded
+        // in a Japanese UI — the "言語 / Language" label stays findable regardless).
+        $("lang").value = osLocaleLang();
+        await prefillFromConfig();
+        ensureOllamaRow();
+        renderLang(val("lang"));
+        updateNewsFundView();
+        loadToken();
+      }
+
+      // Access token: show current, generate/regenerate, copy.
+      async function loadToken() {
+        try { $("access_token").value = (await invoke("get_token")) || ""; } catch (e) {}
+      }
+      async function genToken() {
+        try { $("access_token").value = await invoke("generate_token"); } catch (e) {}
+      }
+      function copyToken() {
+        const el = $("access_token");
+        if (!el.value) return;
+        el.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        // Confirm it: the button gave no feedback at all, so there was no way to
+        // tell a copy from a misclick (the wording already existed, unused).
+        const d = I18N[val("lang")] || I18N.en;
+        const b = $("tok_copy");
+        const label = d.tok_copy;
+        b.textContent = d.tok_copied;
+        setTimeout(() => { b.textContent = label; }, 1500);
+      }
+
+      // Engine start / restart (the engine command spawns it detached).
+      async function engineCmd(cmd, okKey) {
+        const d = I18N[val("lang")] || I18N.en;
+        const s = $("eng_status");
+        s.className = "status-line show busy";
+        s.textContent = d.eng_starting;
+        try {
+          const url = await invoke(cmd); // engine start/restart returns the serve URL
+          s.className = "status-line show ok";
+          s.textContent = d[okKey] + (url ? "  →  " + url : "");
+        } catch (e) {
+          s.className = "status-line show err";
+          s.textContent = d.eng_failed + " " + String(e);
+        }
+      }
+
+      // Settings mode: fill the form with the current config so the user edits
+      // existing values (not a blank form). Keys stay blank (kept on save).
+      async function prefillFromConfig() {
+        let c;
+        try { c = await invoke("load_config"); } catch (e) { return; }
+        if (c.lang) $("lang").value = c.lang;
+        $("provider").value = c.no_llm ? "none"
+          : ({ 1: "openai", 2: "gemini", 3: "claude", 4: "ollama" }[c.primary_provider] || "openai");
+        $("openai_model").value = c.openai_model || "";
+        $("gemini_model").value = c.gemini_model || "";
+        $("claude_model").value = c.claude_model || "";
+        // Recall which API keys are already stored (the values never leave the
+        // engine). Show asterisks so a set key is visible; leaving the field blank
+        // keeps the stored key on save.
+        const keyPh = (id, set) => {
+          if (set) { $(id).setAttribute("data-keyset", "1"); }
+          else { $(id).removeAttribute("data-keyset"); $(id).placeholder = ""; }
+        };
+        keyPh("openai_key", c.openai_key_set);
+        keyPh("gemini_key", c.gemini_key_set);
+        keyPh("claude_key", c.claude_key_set);
+        keyPh("brave_key", c.brave_key_set);
+        keyPh("jquants_key", c.jquants_key_set);
+        $("ollama_list").innerHTML = "";
+        if (c.ollama && c.ollama.length) { for (const o of c.ollama) addOllamaRow(o); }
+        else { addOllamaRow(); }
+        if ($("provider").value === "ollama") { fillOllamaDefaultsIfEmpty(); fetchModelsForRow(ollamaRows()[0]); }
+        $("notify_list").innerHTML = "";
+        if (c.notify && c.notify.length) { for (const nch of c.notify) addNotifyRow(nch); }
+        $("news_enabled").checked = !!c.news_enabled;
+        $("fundamental_enabled").checked = !!c.fundamental_enabled;
+        $("lan_access").checked = !!c.lan_access;
+        $("serve_port").value = c.serve_port || 8787;
+        $("sec_user_agent").value = c.sec_user_agent || "";
+        $("alias_csv").value = c.alias_csv || "";
+        const chk = (id, v) => { $(id).checked = !!v; };
+        chk("ind_ema", c.ind_ema); chk("ind_sma", c.ind_sma); chk("ind_fibonacci", c.ind_fibonacci);
+        chk("ind_stochastics", c.ind_stochastics); chk("ind_adx", c.ind_adx); chk("ind_roc", c.ind_roc);
+        chk("ind_bollinger", c.ind_bollinger); chk("ind_vwap", c.ind_vwap); chk("ind_ichimoku", c.ind_ichimoku);
+        chk("macd_minus_ok", c.macd_minus_ok);
+        const num = (id, v) => { if (v != null) $(id).value = v; };
+        num("buy_rsi", c.buy_rsi); num("sell_rsi", c.sell_rsi);
+        num("macd_diff_low", c.macd_diff_low); num("macd_diff_mid", c.macd_diff_mid); num("macd_diff_extreme", c.macd_diff_extreme);
+        num("weight_basic", c.weight_basic); num("weight_ema", c.weight_ema); num("weight_sma", c.weight_sma);
+        num("weight_bollinger", c.weight_bollinger); num("weight_roc", c.weight_roc); num("weight_adx", c.weight_adx);
+        num("weight_stochastics", c.weight_stochastics); num("weight_fibonacci", c.weight_fibonacci);
+        num("weight_vwap", c.weight_vwap); num("weight_ichimoku", c.weight_ichimoku);
+        num("ema_short_period", c.ema_short_period); num("ema_long_period", c.ema_long_period);
+        num("sma_short_period", c.sma_short_period); num("sma_long_period", c.sma_long_period);
+        num("adx_period", c.adx_period); num("roc_period", c.roc_period);
+        num("stochastics_period", c.stochastics_period); num("bollinger_period", c.bollinger_period);
+        num("bollinger_stddev_multiplier", c.bollinger_stddev_multiplier); num("bb_bandwidth_squeeze_pct", c.bb_bandwidth_squeeze_pct);
+        num("ichimoku_tenkan_period", c.ichimoku_tenkan_period); num("ichimoku_kijun_period", c.ichimoku_kijun_period);
+        num("vwap_period", c.vwap_period); num("fibonacci_neutral_ratio", c.fibonacci_neutral_ratio);
+      }
+
+      function buildPayload() {
+        const provider = val("provider");
+        let primary_provider = 1, no_llm = false;
+        if (provider === "gemini") primary_provider = 2;
+        else if (provider === "claude") primary_provider = 3;
+        else if (provider === "ollama") primary_provider = 4;
+        else if (provider === "none") { no_llm = true; primary_provider = 1; }
+
+        // Gather every instance row that has a model; skip empty rows. Model comes
+        // from the dropdown, or the manual field when "manual entry" is selected.
+        const ollama = [];
+        for (const row of ollamaRows()) {
+          const sel = rq(row, ".o_model").value;
+          const model = sel === MANUAL ? rowVal(row, ".o_model_manual") : sel.trim();
+          if (!model) continue;
+          ollama.push({
+            alias: rowVal(row, ".o_alias") || "local",
+            model,
+            host: rowVal(row, ".o_host") || "127.0.0.1",
+            port: rowVal(row, ".o_port") || "11434",
+          });
+        }
+        // Ollama is the primary provider → it must have at least one instance;
+        // default one so the config is never provider=ollama with no instance.
+        if (primary_provider === 4 && ollama.length === 0) {
+          ollama.push({ alias: "local", model: "llama3", host: "127.0.0.1", port: "11434" });
+        }
+        // Gather notification channels; keep a row only when a kind is selected.
+        // A blank secret keeps the one already in the keychain (engine skips empties).
+        const notify = [];
+        for (const row of notifyRows()) {
+          const kind = rq(row, ".n_kind").value;
+          if (!kind) continue;
+          notify.push({
+            kind,
+            name: rowVal(row, ".n_name"),
+            to: rowVal(row, ".n_to"),
+            secret: rq(row, ".n_secret").value.trim(),
+          });
+        }
+        const news = $("news_enabled").checked;
+        const fund = $("fundamental_enabled").checked;
+        return {
+          lang: val("lang"),
+          openai_key: val("openai_key"),
+          gemini_key: val("gemini_key"),
+          claude_key: val("claude_key"),
+          openai_model: val("openai_model"),
+          gemini_model: val("gemini_model"),
+          claude_model: val("claude_model"),
+          brave_key: news ? val("brave_key") : "",
+          jquants_key: fund ? val("jquants_key") : "",
+          no_llm, primary_provider, ollama, notify,
+          sec_user_agent: fund ? val("sec_user_agent") : "",
+          alias_csv: val("alias_csv"),
+          news_enabled: news, fundamental_enabled: fund,
+          lan_access: $("lan_access").checked,
+          serve_port: Math.min(65535, Math.max(1, Math.round(numOr("serve_port", 8787)))),
+          ind_ema: $("ind_ema").checked, ind_sma: $("ind_sma").checked,
+          ind_fibonacci: $("ind_fibonacci").checked, ind_stochastics: $("ind_stochastics").checked,
+          ind_adx: $("ind_adx").checked, ind_roc: $("ind_roc").checked,
+          ind_bollinger: $("ind_bollinger").checked, ind_vwap: $("ind_vwap").checked,
+          ind_ichimoku: $("ind_ichimoku").checked,
+          macd_minus_ok: $("macd_minus_ok").checked,
+          buy_rsi: numOr("buy_rsi", 30), sell_rsi: numOr("sell_rsi", 70),
+          macd_diff_low: numOr("macd_diff_low", 2), macd_diff_mid: numOr("macd_diff_mid", 10),
+          macd_diff_extreme: numOr("macd_diff_extreme", 100),
+          weight_basic: numOr("weight_basic", 2), weight_ema: numOr("weight_ema", 1),
+          weight_sma: numOr("weight_sma", 1), weight_bollinger: numOr("weight_bollinger", 1),
+          weight_roc: numOr("weight_roc", 1), weight_adx: numOr("weight_adx", 1),
+          weight_stochastics: numOr("weight_stochastics", 1), weight_fibonacci: numOr("weight_fibonacci", 1),
+          weight_vwap: numOr("weight_vwap", 1), weight_ichimoku: numOr("weight_ichimoku", 1),
+          ema_short_period: Math.round(numOr("ema_short_period", 5)), ema_long_period: Math.round(numOr("ema_long_period", 20)),
+          sma_short_period: Math.round(numOr("sma_short_period", 5)), sma_long_period: Math.round(numOr("sma_long_period", 20)),
+          adx_period: Math.round(numOr("adx_period", 14)), roc_period: Math.round(numOr("roc_period", 10)),
+          stochastics_period: Math.round(numOr("stochastics_period", 14)), bollinger_period: Math.round(numOr("bollinger_period", 20)),
+          bollinger_stddev_multiplier: numOr("bollinger_stddev_multiplier", 2), bb_bandwidth_squeeze_pct: numOr("bb_bandwidth_squeeze_pct", 8),
+          ichimoku_tenkan_period: Math.round(numOr("ichimoku_tenkan_period", 9)), ichimoku_kijun_period: Math.round(numOr("ichimoku_kijun_period", 26)),
+          vwap_period: Math.round(numOr("vwap_period", 14)), fibonacci_neutral_ratio: numOr("fibonacci_neutral_ratio", 0.05),
+        };
+      }
+
+      async function submit() {
+        const btn = $("submit");
+        const d = I18N[val("lang")] || I18N.en;
+        $("err").textContent = "";
+        // Consent to the disclaimer before saving config.
+        if (!$("agree").checked) {
+          $("err").style.color = "";
+          $("err").textContent = d.agree_err;
+          return;
+        }
+        // Duplicate Ollama aliases silently break model selection — refuse to save.
+        if (validateAliases()) {
+          $("err").style.color = "";
+          $("err").textContent = d.alias_dup;
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = d.btn_busy;
+        try {
+          await invoke("save_config", { payload: buildPayload() });
+          const np = $("new_pw").value;
+          if (np) {
+            await invoke("change_password", { newPassword: np });
+            $("new_pw").value = "";
+          }
+          $("err").style.color = "var(--accent)";
+          $("err").textContent = d.saved_ok || "Saved.";
+          markUnsaved(false);
+        } catch (e) {
+          $("err").style.color = "";
+          $("err").textContent = String(e);
+        }
+        btn.disabled = false;
+        btn.textContent = d.btn_save || d.btn;
+      }
+
+      // ── Unsaved-changes tracking ────────────────────────────────────────────
+      // Any edit marks the form dirty; a successful save clears it. The flag is
+      // mirrored into Rust so the native close button warns the same way.
+      let unsaved = false;
+      function markUnsaved(v) {
+        if (unsaved === v) return;
+        unsaved = v;
+        invoke("set_unsaved", { unsaved: v }).catch(() => {});
+      }
+      // Quit: ask first when something is unsaved, otherwise leave straight away.
+      function requestQuit() {
+        if (!unsaved) { invoke("quit_app").catch(() => {}); return; }
+        $("quit_modal").classList.add("show");
+      }
+
+      window.addEventListener("DOMContentLoaded", () => {
+        // Gate + first render follow the OS/browser locale (Japanese locale → ja,
+        // everything else → English); the config language is applied after unlock.
+        $("lang").value = osLocaleLang();
+        $("gate_btn").addEventListener("click", tryUnlock);
+        $("gate_pw").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
+        $("lang").addEventListener("change", () => renderLang(val("lang")));
+        $("provider").addEventListener("change", () => {
+          if (val("provider") === "ollama") { fillOllamaDefaultsIfEmpty(); fetchModelsForRow(ollamaRows()[0]); }
+        });
+        $("o_add").addEventListener("click", () => addOllamaRow());
+        $("n_add").addEventListener("click", () => addNotifyRow());
+        $("alias_csv_browse").addEventListener("click", async () => {
+          try {
+            const p = await invoke("plugin:dialog|open", {
+              options: { multiple: false, directory: false, filters: [{ name: "Spreadsheet / CSV", extensions: ["xls", "xlsx", "csv"] }] }
+            });
+            if (typeof p === "string" && p) $("alias_csv").value = p;
+          } catch (e) { /* cancelled or dialog unavailable */ }
+        });
+        $("news_enabled").addEventListener("change", updateNewsFundView);
+        $("fundamental_enabled").addEventListener("change", updateNewsFundView);
+        $("adv_toggle").addEventListener("click", () => {
+          advOpen = !advOpen;
+          $("advanced").classList.toggle("hide", !advOpen);
+          const d = I18N[val("lang")] || I18N.en;
+          $("adv_toggle").textContent = advOpen ? d.adv_hide : d.adv_show;
+        });
+        $("tok_gen").addEventListener("click", genToken);
+        $("tok_copy").addEventListener("click", copyToken);
+        $("eng_restart").addEventListener("click", () => engineCmd("restart_engine", "eng_restarted"));
+        $("submit").addEventListener("click", submit);
+        $("quit").addEventListener("click", requestQuit);
+        $("quit_cancel").addEventListener("click", () => $("quit_modal").classList.remove("show"));
+        $("quit_ok").addEventListener("click", () => invoke("quit_app").catch(() => {}));
+        // The native close button routes back here through this event.
+        window.__TAURI__.event.listen("confirm-quit", () => $("quit_modal").classList.add("show"));
+        // Every field edit marks the form dirty — including rows added later
+        // (Ollama / notify), which is why this listens on the document.
+        document.addEventListener("input", (e) => {
+          if (e.target && e.target.id !== "gate_pw") markUnsaved(true);
+        });
+        document.addEventListener("change", (e) => {
+          if (e.target && e.target.id !== "gate_pw") markUnsaved(true);
+        });
+        renderLang(val("lang"));
+      });
+    </script>
+  </body>
+</html>

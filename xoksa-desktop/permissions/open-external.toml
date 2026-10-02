@@ -1,0 +1,9 @@
+"$schema" = "schemas/schema.json"
+
+# Allow the dashboard (loopback XOKSA origin) to open a web URL in the OS default
+# browser. The command itself restricts targets to http(s); a remote origin needs
+# an explicit ACL grant to reach app-defined commands.
+[[permission]]
+identifier = "allow-open-external"
+description = "Allow invoking the open_external command to open http(s) links in the OS browser."
+commands.allow = ["open_external"]

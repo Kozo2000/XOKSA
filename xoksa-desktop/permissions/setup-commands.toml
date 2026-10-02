@@ -1,0 +1,17 @@
+"$schema" = "schemas/schema.json"
+
+# Local onboarding / settings form commands. Tauri 2 requires an explicit ACL
+# grant for every app-defined command (there is no implicit local trust), so the
+# first-run form and the settings window (⌘,) need these to read/write config,
+# store keys in the OS keychain over the IPC boundary, detect Ollama models, and
+# restart. Granted only to the app-origin `default` capability (main + settings),
+# NOT to the loopback dashboard origin.
+[[permission]]
+identifier = "allow-setup-commands"
+description = "Connection-screen commands (app origin): load_connection, connect, open_settings_app, open_manual. Config/keys live in the standalone settings app; the desktop only picks which engine to connect to."
+commands.allow = [
+  "load_connection",
+  "connect",
+  "open_settings_app",
+  "open_manual",
+]

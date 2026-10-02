@@ -1,0 +1,93 @@
+# deny-all
+/*
+
+# allowlist (root files)
+!.gitignore
+!/README.md
+!/CHANGELOG.md
+!/CLAUDE.md
+!/SECURITY.md
+!/LICENSE
+!/Cargo.toml
+!/Cargo.lock
+!/deny.toml
+!/rust-toolchain.toml
+!/build.rs
+!/xoksa.env.sample
+
+# allow source
+!/src/
+!/src/**
+
+# allow integration tests
+!/tests/
+!/tests/**
+
+
+# allow Leptos/WASM frontend source (built with trunk; build output not committed)
+!/webui-leptos/
+!/webui-leptos/**
+/webui-leptos/target/
+/webui-leptos/target-sbom/
+/webui-leptos/dist/
+
+# allow Tauri desktop app source (v2.3.0; build output + tauri-generated files not committed)
+!/xoksa-desktop/
+!/xoksa-desktop/**
+/xoksa-desktop/target/
+/xoksa-desktop/target-sbom/
+/xoksa-desktop/gen/
+# engine sidecar copies staged by scripts/bundle-engine.sh (build artifacts)
+/xoksa-desktop/binaries/
+
+# allow Tauri settings app source (v2.8.1; build output + tauri-generated files not committed)
+!/xoksa-setup/
+!/xoksa-setup/**
+/xoksa-setup/target/
+/xoksa-setup/target-sbom/
+/xoksa-setup/gen/
+
+# allow shared paths crate — single source of the canonical config location
+# (depended on by both the engine and the desktop); build output not committed
+!/xoksa-paths/
+!/xoksa-paths/**
+/xoksa-paths/target/
+/xoksa-paths/target-sbom/
+# library crate — its lock is not committed (consumers resolve via their own lock;
+# CI regenerates it for the standalone xoksa-paths test)
+/xoksa-paths/Cargo.lock
+
+# allow optional project dirs (必要なら残す/消す)
+!/.github/
+!/.github/**
+!/scripts/
+!/scripts/**
+!/docs/
+!/docs/**
+
+# allow the mechanical guards (PreToolUse hooks)
+# The canon states the rules; these enforce them. Keeping them out of the
+# repository let the written rule and the enforced rule drift apart unseen.
+# Everything else under .claude/ stays ignored (settings.local.json and the
+# task lock are machine-local).
+!/.claude/
+/.claude/*
+!/.claude/hooks/
+!/.claude/hooks/**
+
+# (明示的に無視しておきたい一般項目)
+.DS_Store
+*.log
+xoksa.env
+.env
+**/*.env
+/data_j.csv
+/data/
+
+
+# allow SBOMs (CycloneDX, regenerated per release)
+!/sbom/
+!/sbom/**
+
+# Frozen shipping artifacts (generated; kept locally so §C.4 hashes stay resolvable)
+/dist/

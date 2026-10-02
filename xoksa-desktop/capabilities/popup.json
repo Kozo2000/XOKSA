@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "popup",
+  "description": "Chart/help popup windows served on the loopback XOKSA origin. Event IPC only, so a brushed chart interval can be handed back to the main window (no shared JS realm across native windows). No window-opening, filesystem, shell, or http beyond the event channel.",
+  "windows": ["popup-chart", "popup-help"],
+  "remote": {
+    "urls": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
+  },
+  "permissions": ["core:event:default"]
+}

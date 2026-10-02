@@ -1,0 +1,206 @@
+name: Release build (Windows)
+
+# Builds the shipped Windows artifacts on a runner, not on a developer machine.
+#
+# Why here and not locally: rustc records each crate's source path so a panic can
+# name a file, and on a developer machine those paths run through the home
+# directory. The 2.9.9 engine built locally carried `C:\Users\<name>` 689 times,
+# and the WASM the browser downloads carried it 85 times. `--remap-path-prefix`
+# removes most of them, but not the ones baked into the `std` rlibs rustup ships
+# nor the ones a C toolchain (`aws-lc-sys`) embeds through cc-rs. A runner's
+# account (`runneradmin`) identifies nobody, so building here removes the
+# disclosure at its source instead of rewriting strings afterwards.
+#
+# It also matches the shipping-inspection rule that a release record binds to the
+# artifact CI produced; a local build is not a substitute (§C.1).
+#
+# This workflow does NOT publish a release. It uploads the artifacts and their
+# hashes; tagging and publishing stay manual, after the merge (§C.1 rule 2).
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit, tag or branch to build (defaults to the branch this is dispatched on)"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false # a release build is never worth cancelling halfway
+
+# Least privilege: reads the repo, writes nothing back. Artifacts go to the run,
+# not to a release. No secrets are used, so there is nothing here to exfiltrate.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Pinned so a rebuild of the same commit uses the same tooling. The §C.4 record
+  # names these versions beside the artifact hashes.
+  TRUNK_VERSION: "0.21.14"
+  TAURI_CLI_VERSION: "2.11.4"
+
+jobs:
+  build:
+    name: Build engine, apps and installer
+    runs-on: windows-latest
+
+    steps:
+      # Third-party actions are pinned to a commit SHA (not a mutable tag) so a
+      # moved or compromised tag cannot inject code into a release build.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false # no GITHUB_TOKEN left in .git/config
+
+      - name: Read the pinned toolchain
+        id: rust
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+          targets: wasm32-unknown-unknown # the Leptos frontend
+
+      # trunk and tauri-cli are compiled here rather than downloaded from a
+      # third-party action, so the only new supply-chain input is crates.io,
+      # which `cargo audit` and `cargo deny` already cover. The cache key holds
+      # both versions, so a bump rebuilds them and nothing else.
+      - name: Cache build tools
+        id: tools-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/trunk.exe
+            ~/.cargo/bin/cargo-tauri.exe
+          key: ${{ runner.os }}-tools-trunk${{ env.TRUNK_VERSION }}-tauri${{ env.TAURI_CLI_VERSION }}
+
+      - name: Install trunk and tauri-cli
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cargo install --locked trunk@"$TRUNK_VERSION"
+          cargo install --locked tauri-cli@"$TAURI_CLI_VERSION"
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-release-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-release-cargo-
+
+      # Recorded in the run log so the §C.4 provenance line can name the exact
+      # toolchain that produced these hashes.
+      - name: Record build provenance
+        shell: bash
+        run: |
+          echo "commit : $(git rev-parse HEAD)"
+          echo "ref    : ${{ inputs.ref || github.ref }}"
+          rustc -vV
+          cargo -V
+          trunk --version
+          cargo tauri --version
+          echo "version: $(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+
+      # The remap is belt-and-braces beside the runner account: it shortens the
+      # registry and toolchain prefixes that would otherwise appear in panic
+      # strings, so the artifact carries less build-environment detail either way.
+      - name: Set path-remapping flags
+        shell: bash
+        run: |
+          cargo_home="$(cygpath -w "${CARGO_HOME:-$USERPROFILE/.cargo}")"
+          rustup_home="$(cygpath -w "${RUSTUP_HOME:-$USERPROFILE/.rustup}")"
+          repo="$(cygpath -w "$PWD")"
+          {
+            echo "RUSTFLAGS=--remap-path-prefix=$cargo_home=/cargo --remap-path-prefix=$rustup_home=/rustup --remap-path-prefix=$repo=/xoksa"
+          } >> "$GITHUB_ENV"
+
+      # Build order is the release recipe in security-assessment.md §C.1:
+      # frontend, engine, settings app, sidecars, installer.
+      - name: Build the WASM frontend (trunk)
+        shell: bash
+        working-directory: webui-leptos
+        run: trunk build --release
+
+      - name: Build the engine
+        shell: bash
+        run: cargo build --release --bin xoksa
+
+      - name: Build the settings app
+        shell: bash
+        working-directory: xoksa-setup
+        run: cargo build --release
+
+      # Stages BOTH sidecars and refuses to stage one whose version does not
+      # match Cargo.toml, so a missed rebuild fails here rather than shipping.
+      - name: Stage the Tauri sidecars
+        shell: bash
+        run: bash scripts/bundle-engine.sh
+
+      - name: Build the installer
+        shell: bash
+        working-directory: xoksa-desktop
+        run: cargo tauri build
+
+      # One MSI, one location (target/release/XOKSA-<version>-x64.msi). The NSIS
+      # output `targets: "all"` also produces is not shipped and is discarded.
+      - name: Collect the installer
+        shell: bash
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+          msi="$(find xoksa-desktop/target/release/bundle/msi -name '*.msi' | head -1)"
+          test -n "$msi" || { echo "no MSI produced" >&2; exit 1; }
+          mv "$msi" "target/release/XOKSA-${version}-x64.msi"
+          rm -rf xoksa-desktop/target/release/bundle/nsis
+          echo "XOKSA_VERSION=$version" >> "$GITHUB_ENV"
+
+      # The gate this workflow exists for. It fails the build if any shipped file
+      # carries a home-directory path belonging to an account that is not a known
+      # build account — which is what a developer-machine build produces.
+      - name: Gate — no identifying build path in any artifact
+        shell: bash
+        run: |
+          wasm="$(find webui-leptos/dist -name '*_bg.wasm' | head -1)"
+          bash scripts/check-no-host-paths.sh \
+            "target/release/xoksa.exe" \
+            "xoksa-desktop/target/release/xoksa-desktop.exe" \
+            "xoksa-setup/target/release/xoksa-setup.exe" \
+            "$wasm" \
+            "target/release/XOKSA-${XOKSA_VERSION}-x64.msi"
+
+      - name: Hash the artifacts
+        shell: bash
+        run: |
+          wasm="$(find webui-leptos/dist -name '*_bg.wasm' | head -1)"
+          {
+            echo "# XOKSA ${XOKSA_VERSION} Windows x86_64"
+            echo "# commit $(git rev-parse HEAD)"
+            echo "# built by ${{ github.workflow }} run ${{ github.run_id }}"
+            echo
+            sha256sum "target/release/XOKSA-${XOKSA_VERSION}-x64.msi" \
+                      "target/release/xoksa.exe" \
+                      "xoksa-desktop/target/release/xoksa-desktop.exe" \
+                      "xoksa-setup/target/release/xoksa-setup.exe" \
+                      "$wasm"
+          } | tee SHA256SUMS
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: xoksa-${{ env.XOKSA_VERSION }}-windows-x86_64
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            target/release/XOKSA-${{ env.XOKSA_VERSION }}-x64.msi
+            target/release/xoksa.exe
+            xoksa-desktop/target/release/xoksa-desktop.exe
+            xoksa-setup/target/release/xoksa-setup.exe
+            webui-leptos/dist/*_bg.wasm
+            SHA256SUMS

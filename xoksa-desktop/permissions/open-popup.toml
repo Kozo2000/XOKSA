@@ -1,0 +1,9 @@
+"$schema" = "schemas/schema.json"
+
+# Allow the dashboard (served on the loopback XOKSA server origin) to open the
+# native chart/help popup windows. App-defined commands are implicitly trusted
+# for local windows, but a remote origin requires an explicit ACL grant.
+[[permission]]
+identifier = "allow-open-popup-window"
+description = "Allow invoking the open_popup_window command to open native chart/help windows."
+commands.allow = ["open_popup_window"]

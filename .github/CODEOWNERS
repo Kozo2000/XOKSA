@@ -1,0 +1,36 @@
+# Code owners — the reviewer required per path.
+#
+# Policy: docs/dev-oper/github-operations-policy.md — §3 (roles) and §4, which
+# requires that an approval come from a CODEOWNERS-relevant reviewer. Listing a
+# path here is what makes that requirement mechanical instead of remembered.
+#
+# Syntax note: later matches win, so the catch-all goes first.
+
+# Everything not matched below.
+*                   @Kozo2000
+
+# 正典 / Canon — the security design and the operations policy themselves.
+# A change here changes the rules every other change is judged against.
+/docs/dev-prog/     @Kozo2000
+/docs/dev-oper/     @Kozo2000
+/CLAUDE.md          @Kozo2000
+
+# User-facing manuals.
+/docs/manual/       @Kozo2000
+
+# Engine, the two UI shells, and the shared path crate.
+/src/               @Kozo2000
+/tests/             @Kozo2000
+/webui-leptos/      @Kozo2000
+/xoksa-desktop/     @Kozo2000
+/xoksa-setup/       @Kozo2000
+/xoksa-paths/       @Kozo2000
+
+# Release surface — CI, dependency policy, the published SBOM, and the
+# lockfiles a release build is pinned to.
+/.github/           @Kozo2000
+/scripts/           @Kozo2000
+/sbom/              @Kozo2000
+/deny.toml          @Kozo2000
+/Cargo.lock         @Kozo2000
+/SECURITY.md        @Kozo2000

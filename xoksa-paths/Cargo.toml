@@ -1,0 +1,10 @@
+[package]
+name = "xoksa-paths"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Single source of truth for xoksa's canonical user-scoped paths (shared by the engine and the desktop so the config location cannot drift)."
+
+[dependencies]
+dirs = "7"

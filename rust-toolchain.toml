@@ -1,0 +1,38 @@
+# Pin the toolchain. One file, one version, every workspace.
+#
+# Why pin at all: `webui-leptos` reaches `proc-macro-error2` 2.0.1 through three
+# of Leptos's proc-macro crates, and that crate re-exports a private extern
+# crate. rustc reports it as E0365, a future-incompatibility lint, and says it
+# "will become a hard error in a future release". Today `--cap-lints allow`
+# keeps it a warning because the crate comes from the registry — but cap-lints
+# caps *lints*, and a hard error is not a lint (measured: `--cap-lints allow`
+# does not suppress E0308 either). On the day stable makes the change, the WASM
+# frontend stops building, and it does so on both operating systems at once
+# because the crate appears in `webui-leptos/Cargo.lock` and nowhere else.
+#
+# Unpinned, that lands without warning across **seven** jobs — `ci.yml` (4),
+# `release-windows.yml`, `release-macos.yml`, `audit.yml` — so it would stop
+# shipping *and* stop CI going green, in the same morning.
+#
+# Why 1.98.1 specifically: it is not a preference. The published Windows
+# artifacts (run 36134676892) and the macOS CI build (run 36233683255) were both
+# produced by `rustc 1.98.1 (48a229cea 2026-09-01)`. Pinning to anything else
+# would mean the hashes recorded in security-assessment.md §C.4 can no longer be
+# reproduced from this tree.
+#
+# The workflows keep their own `targets:` and `components:` inputs. Those run
+# through `dtolnay/rust-toolchain`, which installs a toolchain and sets it as
+# rustup's *default*; this file overrides the default for every cargo invocation
+# in the tree. The two paths are independent and idempotent — leaving both means
+# that if either one is wrong, wasm32 is still installed and the six jobs that
+# need it still run. Do not delete the workflow inputs to "avoid duplication".
+#
+# Raising the version is a standalone PR: change the line, watch CI go green.
+# Dependency scanning is unaffected — `cargo audit` and `cargo deny` run on every
+# push regardless of which toolchain compiles the code.
+
+[toolchain]
+channel = "1.98.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]

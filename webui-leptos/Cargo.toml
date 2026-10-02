@@ -1,0 +1,49 @@
+# XOKSA Web UI — Rust/WASM frontend (Leptos, client-side rendered).
+#
+# Standalone crate (its own [workspace]) so it is NOT part of the native `xoksa`
+# workspace: `cargo build` / CI at the repo root never touch this wasm32 crate.
+# Built with `trunk build` (outputs to ./dist, served by `xoksa serve --ui`).
+#
+# Boundary: presentation only. No analysis / indicators / LLM / DB / backtest /
+# external data — those stay native and are reached over the JSON API.
+[package]
+name = "xoksa-webui"
+version = "2.9.10"
+edition = "2021"
+license = "MIT"
+publish = false
+# Excluded from the root workspace (see root Cargo.toml `[workspace].exclude`).
+# Run directly via trunk; cargo treats an excluded package as standalone.
+
+[dependencies]
+leptos = { version = "0.8", features = ["csr"] }
+gloo-net = { version = "0.7", features = ["http", "eventsource"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures = { version = "0.3", default-features = false, features = ["std"] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "Node",
+    "EventTarget",
+    "Element",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "Storage",
+    "CssStyleDeclaration",
+    "Event",
+    "MessageEvent",
+    "MouseEvent",
+    "DomRect",
+    "Navigator",
+    "KeyboardEvent",
+] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1

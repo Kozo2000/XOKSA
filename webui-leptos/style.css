@@ -1,0 +1,336 @@
+/* XOKSA Web UI (Leptos/WASM) — dashboard.
+   Themeable (dark/light via [data-theme]), font-scalable (via [data-font]),
+   resizable panels, panel-independent scrolling. Dependency-free CSS. */
+
+:root {
+  --accent: #4c8dff;
+  --up: #2ecc71;
+  --down: #ff5c5c;
+  --neutral: #d9b341;
+  --gap: 8px;
+  --header-h: 60px;
+  --fs: 14px; /* base font size, overridden by [data-font] */
+}
+
+/* ── Theme: dark (default) ── */
+[data-theme="dark"] {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1d212b;
+  --field: #0f1115;
+  --border: #2a2f3a;
+  --text: #e6e9ef;
+  --muted: #8b93a3;
+  --msg-user: #21314d;
+  --msg-err: #3a1f1f;
+  /* +ticker search box — WHITE on the dark header so it reads as an input well. */
+  --entry-bg: #ffffff;
+  --entry-fg: #1a1d23;
+  --entry-ph: #6b7280;
+  --entry-icon: #5b6472;
+  --entry-border: #c7ccd6;
+}
+/* ── Theme: light ──
+   Three deliberate levels for a clear hierarchy: a grey page backdrop, lighter
+   panels floating on it, and WHITE input wells so entry points are obvious. */
+[data-theme="light"] {
+  --bg: #d7dbe4;
+  --panel: #eef1f6;
+  --panel-2: #e2e6ee;
+  --field: #ffffff;
+  --border: #c7cedb;
+  --text: #1a1f2b;
+  --muted: #59647a;
+  --msg-user: #d8e4fb;
+  --msg-err: #f6dcdc;
+  /* +ticker search box — the XOKSA accent BLUE on the light header: it ties to
+     the brand (same blue as the "XOKSA" wordmark) instead of a heavy grey blob,
+     and still stands out clearly. (Dark theme keeps the white box.) */
+  --entry-bg: var(--accent);
+  --entry-fg: #ffffff;
+  --entry-ph: rgba(255, 255, 255, 0.82);
+  --entry-icon: #ffffff;
+  --entry-border: var(--accent);
+}
+
+/* ── Font scale (generous — readability first). The whole UI scales off --fs,
+   so these shift everything; S is already larger than a typical default. ── */
+[data-font="s"] { --fs: 16px; }
+[data-font="m"] { --fs: 19px; }
+[data-font="l"] { --fs: 23px; }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: var(--fs) / 1.45 system-ui, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+/* Column layout so the header takes its natural height (it wraps to 2 rows when
+   narrow) and the app fills the rest — no fragile `calc(100% - fixed-header)`. */
+body { display: flex; flex-direction: column; }
+
+/* ── Header ── */
+/* Single-row header (never wraps): brand · symbol chips (the priority space) ·
+   a push spacer · a separator · the +ticker entry, timeframe, AI selection, and
+   the right icon group (tools / help / settings). Set-once controls — auto-refresh,
+   theme, language, font — live in the ⚙ settings popover, not on this row. */
+.header {
+  min-height: var(--header-h);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  gap: 12px;
+  padding: 0 14px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+.header__brand { flex: 0 0 auto; white-space: nowrap; font-weight: 700; letter-spacing: 1px; color: var(--accent); display: inline-flex; align-items: baseline; gap: 6px; }
+.header__ver { font-weight: 400; font-size: 0.7em; letter-spacing: 0; color: var(--muted); }
+.header__controls { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow: hidden; }
+.header .field { flex: 0 0 auto; }
+/* vertical divider + flexible push spacer */
+.vdiv { flex: 0 0 auto; width: 1px; height: 26px; background: var(--border); }
+.push { flex: 1 1 auto; }
+/* right-side icon buttons (help / settings; the tools dropdown is a .field) */
+.hicon { flex: 0 0 auto; height: 34px; min-width: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; font: inherit; font-size: 14px; }
+.hicon:hover { border-color: var(--accent); }
+.hicon--accent { color: var(--accent); border-color: var(--accent); }
+
+/* Ticker chips — priority zone: take the free space, scroll horizontally past
+   5 rather than wrapping the single-row header. */
+.chips { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 2px 0; }
+.chips::-webkit-scrollbar { height: 6px; }
+.chips::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 4px 3px 7px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.chip--active { border-color: var(--accent); background: var(--msg-user); }
+.chip__chk { cursor: pointer; margin: 0; width: 14px; height: 14px; flex: 0 0 auto; accent-color: var(--accent); }
+.chip__label { cursor: pointer; }
+.chip--active .chip__label { font-weight: 700; }
+.chip__x {
+  cursor: pointer; color: var(--muted); border-radius: 50%;
+  width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+}
+.chip__x:hover { color: var(--down); background: var(--panel-2); }
+/* +ticker entry — a Windows-Start-style search box: a light, rounded, floating
+   field with a leading magnifier, so "type a ticker code here" reads at a glance.
+   White base on purpose — it stands out on the dark header and reads as an input,
+   not a button. Kept light in both themes (an intentional single-look element). */
+.entry { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; background: var(--entry-bg); border: 1px solid var(--entry-border); border-radius: 18px; padding: 6px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.28); }
+.entry:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.entry__icon { flex: 0 0 auto; color: var(--entry-icon); display: inline-flex; }
+.entry__in { width: 210px; max-width: 42vw; background: transparent; border: 0; outline: none; color: var(--entry-fg); font: inherit; font-size: 0.9em; }
+.entry__in::placeholder { color: var(--entry-ph); }
+
+.field {
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+.field:focus, .field:focus-visible { outline: none; border-color: var(--accent); }
+.badge {
+  color: var(--muted);
+  font-size: 0.85em;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.badge b { color: var(--text); }
+.badge b.db--on { color: var(--up); }
+.badge b.db--off { color: var(--muted); }
+.badge b.db--err { color: var(--down); }
+.toggle { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.85em; }
+.data-time { display: inline-flex; align-items: center; color: var(--muted); font-weight: 400; font-size: 0.85em; white-space: nowrap; }
+
+/* ⚙ settings popover — set-once controls (update cadence + display), off the header row. */
+.settings-backdrop { position: fixed; inset: 0; z-index: 39; }
+.settings-pop { position: fixed; top: var(--header-h); right: 12px; z-index: 40; width: 300px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 34px rgba(0,0,0,.5); padding: 6px 16px 14px; }
+.settings-pop h3 { margin: 14px 0 8px; font-size: 0.72rem; letter-spacing: 0.7px; color: var(--muted); font-weight: 700; }
+.settings-pop h3:first-child { margin-top: 8px; }
+.prow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0; }
+.prow__k { color: var(--muted); font-size: 0.9em; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--muted); padding: 5px 11px; font: inherit; font-size: 0.84em; cursor: pointer; }
+.seg button.on { background: var(--accent); color: #fff; }
+
+.btn {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ── Layout (resizable via gutters) ── */
+.app {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--gap);
+}
+.dashboard { flex: 1; min-height: 0; display: flex; flex-direction: row; }
+.left { flex: 1; min-width: 0; }
+.right { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+/* fund/news carry a user-set height (inline style:height) and stay rigid so the
+   resize gutters feel predictable; market takes the remainder. `.right` clips so
+   nothing bleeds into the chat below. The market panel is kept visible by a
+   measured clamp in main.rs (clamp_right) — a CSS max-height:% does not resolve
+   against this stretch-sized flex parent in WKWebView. */
+.right .panel--fundamental { flex: 0 0 auto; }
+.right .panel--news { flex: 0 0 auto; }
+.right .panel--market { flex: 1 1 auto; min-height: 90px; }
+
+.gutter { background: transparent; flex: 0 0 auto; }
+.gutter--col { width: 8px; cursor: col-resize; }
+.gutter--row { height: 8px; cursor: row-resize; }
+.gutter:hover, .gutter--dragging { background: var(--accent); opacity: 0.5; }
+
+/* ── Panels ── */
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.panel__title {
+  margin: 0;
+  padding: 3px 12px;
+  line-height: 1.3;
+  font-size: 0.95em;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--text);
+  background: var(--panel-2);
+  border-bottom: 2px solid var(--accent);
+}
+.panel__title--row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.btn--mini { padding: 1px 8px; font-size: 1em; line-height: 1.4; }
+.panel__body { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; }
+
+.muted { color: var(--muted); }
+
+.analysis {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "Cascadia Code", Consolas, "Noto Sans JP", monospace;
+  font-size: 0.95em;
+  line-height: 1.65;
+}
+.analysis .pos { color: var(--up); }
+.analysis .neg { color: var(--down); }
+
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; align-content: start; }
+.kv .k { color: var(--muted); white-space: nowrap; }
+.kv .v { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.market-log { font-family: ui-monospace, Consolas, monospace; font-size: 0.95em; }
+.market-log .row { padding: 2px 0; border-bottom: 1px dashed var(--border); white-space: pre-wrap; }
+
+/* ── News ── */
+/* News free-text search row (search box + "銘柄情報を含む" checkbox + button). */
+.news-search { display: flex; align-items: center; gap: 8px; padding: 6px 12px; flex-wrap: wrap; }
+.news-search__input { flex: 1 1 140px; min-width: 120px; }
+.news-search__chk { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
+.news-search__btn { flex: 0 0 auto; }
+.news-list { display: flex; flex-direction: column; gap: 10px; }
+.news-item { display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.news-title { color: var(--text); font-weight: 600; text-decoration: none; }
+.news-title:hover { color: var(--accent); text-decoration: underline; }
+.news-url { color: var(--accent); font-size: 0.88em; text-decoration: none; word-break: break-all; }
+.news-url:hover { text-decoration: underline; }
+.news-date { color: var(--muted); font-size: 0.85em; }
+
+/* The chat-command reference opens in a separate popup window
+   (see open_help_window in main.rs) with its own inline styles. */
+
+.chat-log { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px; }
+.msg { padding: 10px 14px; border-radius: 8px; white-space: pre-wrap; line-height: 1.7; word-break: break-word; }
+/* User turns: compact bubble on the right. Assistant/error: full-width blocks
+   (they carry long analysis transcripts — a narrow bubble wastes space). */
+.msg--user { align-self: flex-end; max-width: 80%; background: var(--msg-user); }
+.msg--assistant { align-self: stretch; background: var(--panel-2); border: 1px solid var(--border); }
+.msg--error { align-self: stretch; background: var(--msg-err); border: 1px solid var(--down); }
+/* In-bubble line hierarchy (built by render_rich): heading lines stand out;
+   blank lines become real spacing. */
+.msg .ln { white-space: pre-wrap; word-break: break-word; }
+.msg .ln-h { white-space: pre-wrap; word-break: break-word; font-weight: 700; color: var(--accent); margin-top: 0.7em; }
+.msg .ln-h:first-child { margin-top: 0; }
+.msg .ln-sp { height: 0.6em; }
+/* URLs: inline links that wrap if long (keeps citation parens attached). */
+.msg .ln-link { color: var(--accent); overflow-wrap: anywhere; word-break: break-all; text-decoration: none; }
+.msg .ln-link:hover { text-decoration: underline; }
+/* Typewriter cursor while streaming. */
+.msg.streaming::after { content: "▋"; margin-left: 1px; animation: xoksa-pulse 1s ease-in-out infinite; }
+@keyframes xoksa-pulse { 0%,100% { opacity: 0.25; } 50% { opacity: 0.9; } }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.attach-chip { display: flex; align-items: center; gap: 8px; margin: 6px 12px -2px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2); color: var(--muted); font-size: 0.85em; width: fit-content; max-width: calc(100% - 24px); }
+.chat-input { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); background: var(--panel-2); align-items: flex-end; }
+.field--grow { flex: 1; }
+/* Multi-line chat entry: auto-grows (JS sets height) up to a cap, then scrolls. */
+.chat-ta { resize: none; min-height: 3.9em; max-height: 40vh; overflow-y: auto; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+/* Cancel (✕) button — shown only while a chat request is in flight. */
+.chat-cancel { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 0 12px; }
+.chat-cancel:hover { color: var(--text); border-color: var(--text); }
+
+@media (max-width: 860px) {
+  .app { height: auto; overflow: auto; }
+  .dashboard { flex-direction: column; }
+  .left { min-height: 280px; }
+  .right { width: auto !important; }
+  .gutter--col { display: none; }
+}
+
+/* Backtest setup panel (overlay). Opened by the 🧪 action; timeframe/period
+   selectors update the achievable-period hint live. */
+.bt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;
+  align-items:center;justify-content:center;z-index:1000}
+.bt-card{background:#171a21;border:1px solid #2a2f3a;border-radius:10px;
+  padding:18px 20px;min-width:320px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.bt-title{margin:0 0 12px;font-size:1.05em}
+.bt-sym{color:#4c8dff;font-weight:600}
+.bt-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}
+.bt-row .field{min-width:160px}
+.bt-hint{margin:2px 0 8px;color:#9aa3b2;font-size:.88em}
+.bt-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
+.bt-card .btn{background:#2a2f3a;color:#e6e9ef;border:1px solid #3a4150;border-radius:7px;
+  padding:6px 14px;cursor:pointer;font:inherit}
+.bt-card .btn:hover{background:#333a47}
+.bt-card .btn--primary{background:#2f6feb;border-color:#2f6feb}
+.bt-card .btn--primary:hover{background:#3b79f0}
+.bt-card .btn:disabled{opacity:.6;cursor:default}
+
+/* Rule editor (condition builder) inside the backtest panel. */
+.bt-card{min-width:min(560px,92vw);max-height:88vh;overflow:auto}
+.bt-cond{border:1px solid #2a2f3a;border-radius:8px;padding:8px 10px;margin:8px 0}
+.bt-cond-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.bt-cond-head b{font-size:.95em}
+.bt-row2{display:flex;align-items:center;gap:6px;margin:5px 0;flex-wrap:wrap}
+.bt-row2 .field{flex:1 1 auto;min-width:90px}
+.bt-row2 .bt-op{flex:0 0 auto;min-width:70px}
+.bt-row2 .bt-num{flex:0 0 90px;min-width:70px}
+.bt-x{flex:0 0 auto;padding:4px 9px;line-height:1}
+.bt-add{margin-top:4px;font-size:.9em}
+.bt-saverow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0}
+.bt-saverow .field{flex:1 1 120px;min-width:100px}

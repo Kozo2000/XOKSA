@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>XOKSA</title>
+    <style>
+      :root {
+        --bg: #0f1115; --panel: #171a21; --border: #2a2f3a;
+        --text: #c9d1d9; --muted: #8b949e; --accent: #2ec896;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        height: 100%; margin: 0; background: var(--bg); color: var(--text);
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+      }
+      .center { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .75rem; }
+      .title { font-size: 1.5rem; letter-spacing: .16em; font-weight: 600; color: var(--accent); }
+      .msg { font-size: .9rem; color: var(--muted); }
+      .box { width: 380px; max-width: 90vw; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 4px; }
+      .box .title { align-self: center; margin-bottom: 10px; }
+      label { display: block; font-size: .82rem; margin: 10px 0 4px; }
+      input[type=text], input[type=password] {
+        width: 100%; padding: 9px 11px; background: #0c0e12; color: var(--text);
+        border: 1px solid var(--border); border-radius: 6px; font: inherit;
+      }
+      #token { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; }
+      .check { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; font-size: .88rem; }
+      .check input { width: auto; }
+      .err { color: #ff6b6b; font-size: .82rem; min-height: 1.1em; margin-top: 8px; }
+      .actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+      button { font: inherit; border-radius: 8px; cursor: pointer; }
+      button.primary { background: var(--accent); color: #04120c; border: 0; padding: 10px 20px; font-weight: 700; }
+      button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); padding: 9px 16px; }
+      button:disabled { opacity: .55; cursor: default; }
+      .hide { display: none; }
+      .hint { color: var(--muted); font-size: .76rem; margin: 6px 0 0; }
+    </style>
+  </head>
+  <body>
+    <div id="connecting" class="center hide">
+      <div class="title">XOKSA</div>
+      <div class="msg" id="connecting_msg" data-i18n="connecting">Connecting…</div>
+    </div>
+
+    <div id="conn" class="center hide">
+      <div class="box">
+        <div class="title">XOKSA</div>
+        <label for="addr" data-i18n="l_addr">Engine address (host:port)</label>
+        <input type="text" id="addr" placeholder="127.0.0.1:8787" autocomplete="off" />
+        <label for="token" data-i18n="l_token">Access token</label>
+        <input type="password" id="token" autocomplete="off" data-i18n-ph="token_ph" placeholder="(leave blank for a local engine)" />
+        <label class="check"><input type="checkbox" id="autostart" checked /> <span data-i18n="l_autostart">Start a local engine automatically</span></label>
+        <p class="hint" data-i18n="hint">An auto-started local engine needs no token. To connect to a remote engine (or one with LAN access on), enter its address and the token from its Settings app.</p>
+        <div class="err" id="err"></div>
+        <div class="actions">
+          <button class="primary" id="connect" data-i18n="connect">Connect</button>
+          <button class="ghost" id="settings" data-i18n="settings">Settings…</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const invoke = window.__TAURI__.core.invoke;
+      const $ = (id) => document.getElementById(id);
+
+      // Bilingual, following the OS/browser locale — mirrors the settings app so
+      // the connection screen is not stranded in English on a Japanese system.
+      const I18N = {
+        en: {
+          connecting: "Connecting…",
+          l_addr: "Engine address (host:port)",
+          l_token: "Access token",
+          token_ph: "(leave blank for a local engine)",
+          l_autostart: "Start a local engine automatically",
+          hint: "An auto-started local engine needs no token. To connect to a remote engine (or one with LAN access on), enter its address and the token from its Settings app.",
+          connect: "Connect", settings: "Settings…", token_set: "•••••••• (set)",
+          err_spawn: "Failed to start the engine: {0}",
+          err_exit: "The engine exited right after startup ({0}).",
+          err_busy_auth: "Port {0} is in use by another xoksa engine that requires a token.",
+          err_busy_engine: "Port {0} is in use by another xoksa engine (v{1}).",
+          err_busy_other: "Port {0} is in use by another process.",
+          err_no_port: "No free local port could be allocated.",
+          err_auth: "The engine requires an access token (none set or mismatched).",
+          err_timeout: "The local engine did not become ready in time (last state: {0}).",
+        },
+        ja: {
+          connecting: "接続しています…",
+          l_addr: "エンジンのアドレス（host:port）",
+          l_token: "アクセストークン",
+          token_ph: "（ローカルエンジンなら空欄）",
+          l_autostart: "ローカルエンジンを自動起動する",
+          hint: "自動起動のローカルエンジンにトークンは不要です。リモートのエンジンや LAN 公開中のエンジンに接続するときは、そのアドレスと、相手の設定アプリで発行したトークンを入力します。",
+          connect: "接続", settings: "設定…", token_set: "•••••••• （設定済）",
+          err_spawn: "エンジンを起動できませんでした: {0}",
+          err_exit: "エンジンが起動直後に終了しました（{0}）。",
+          err_busy_auth: "ポート {0} は認証が必要な別の xoksa エンジンが使用中です。",
+          err_busy_engine: "ポート {0} は別の xoksa エンジン（v{1}）が使用中です。",
+          err_busy_other: "ポート {0} は別のプロセスが使用中です。",
+          err_no_port: "空きローカルポートを確保できませんでした。",
+          err_auth: "エンジンがアクセストークンを要求しています（未設定または不一致）。",
+          err_timeout: "ローカルエンジンが時間内に準備できませんでした（最終状態: {0}）。",
+        },
+      };
+      // The configured language (`LANG` in xoksa.env) decides this screen too, so
+      // it cannot disagree with the settings app, the dashboard, or the CLI. The
+      // OS locale is only the first-run fallback, before any config exists.
+      let LANG = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
+      function renderLang() {
+        const d = I18N[LANG] || I18N.en;
+        document.documentElement.lang = LANG;
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+          const k = el.getAttribute("data-i18n");
+          if (d[k] != null) el.textContent = d[k];
+        });
+        document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
+          const k = el.getAttribute("data-i18n-ph");
+          if (d[k] != null) el.placeholder = d[k];
+        });
+      }
+
+      // Errors from the Rust side arrive as "key|arg|arg" so the cause can be
+      // shown in the UI language; unknown keys fall back to the raw string.
+      function fmtErr(e) {
+        const d = I18N[LANG] || I18N.en;
+        const parts = String(e).split("|");
+        const t = d[parts[0]];
+        if (!t) return String(e);
+        return t.replace(/\{(\d)\}/g, (_, i) => parts[+i + 1] ?? "");
+      }
+
+      function splitAddr(a) {
+        const s = a.trim();
+        const i = s.lastIndexOf(":");
+        if (i > 0 && i < s.length - 1) return [s.slice(0, i), s.slice(i + 1)];
+        return [s || "127.0.0.1", "8787"];
+      }
+
+      function showForm() {
+        $("connecting").classList.add("hide");
+        $("conn").classList.remove("hide");
+      }
+
+      async function doConnect() {
+        $("err").textContent = "";
+        const [host, port] = splitAddr($("addr").value || "127.0.0.1:8787");
+        $("conn").classList.add("hide");
+        $("connecting").classList.remove("hide");
+        try {
+          const url = await invoke("connect", {
+            host, port, token: $("token").value, autoStart: $("autostart").checked,
+          });
+          location.href = url; // navigate this WebView to the engine dashboard
+        } catch (e) {
+          $("err").textContent = fmtErr(e);
+          showForm();
+        }
+      }
+
+      async function init() {
+        let c = {};
+        try { c = await invoke("load_connection"); } catch (e) {}
+        // The configured language wins; the OS-locale guess above only stands
+        // when there is no config yet (first run).
+        if (c.lang === "ja" || c.lang === "en") {
+          LANG = c.lang;
+          renderLang();
+        }
+        if (c.host) $("addr").value = c.host + ":" + (c.port || "8787");
+        $("autostart").checked = c.auto_start !== false; // default on
+        if (c.token_set) $("token").placeholder = (I18N[LANG] || I18N.en).token_set;
+        showForm();
+      }
+
+      window.addEventListener("DOMContentLoaded", () => {
+        renderLang();
+        $("connect").addEventListener("click", doConnect);
+        $("settings").addEventListener("click", () => invoke("open_settings_app").catch(() => {}));
+        $("addr").addEventListener("keydown", (e) => { if (e.key === "Enter") doConnect(); });
+        $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") doConnect(); });
+        init();
+      });
+    </script>
+  </body>
+</html>

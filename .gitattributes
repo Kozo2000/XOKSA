@@ -1,0 +1,7 @@
+*.zip filter=lfs diff=lfs merge=lfs -text
+
+# Shell scripts stay LF in every working tree. This project is built on
+# Windows and on macOS, and with core.autocrlf a Windows checkout would
+# otherwise hold CRLF copies of the release scripts. Git Bash tolerates CRLF
+# today, but a build step must not depend on which shell happens to read it.
+*.sh text eol=lf

@@ -1,0 +1,220 @@
+name: Release build (macOS)
+
+# Builds the shipped macOS artifacts on a runner, not on a developer machine —
+# the same reason as release-windows.yml, measured on the same code.
+#
+# rustc records each crate's source path so a panic can name a file. Built
+# locally, the 2.9.8 engine carried `/Users/<name>` 616 times, the desktop shell
+# 336, the settings app 280, and the WASM the browser downloads 85. Those files
+# are what shipped. `--remap-path-prefix` cannot reach the paths baked into the
+# `std` rlibs rustup ships, and `trim-paths` is still unstable on the toolchain
+# CI uses — measured on 1.98.1: "feature `trim-paths` is required ... not
+# stabilized in this version of Cargo". A runner's account (`runner`) identifies
+# nobody, so building here removes the disclosure at its source.
+#
+# What this does NOT do:
+#
+#   * Sign or notarize. The Developer ID identity stays on the owner's machine,
+#     so what this uploads is UNSIGNED — an input to the signing step, not the
+#     download. Signing rewrites the binaries but adds no paths, so the property
+#     this workflow exists for survives it, and `check-no-host-paths.sh` can be
+#     re-run on the signed files to confirm that.
+#   * Build a DMG. The shipped DMG is assembled from the *signed* `.app` on the
+#     owner's machine, so a DMG built here would only be discarded; this ships
+#     the `.app` that the signing step consumes.
+#   * Publish a release. Tagging and publishing stay manual, after the merge
+#     (§C.1 rule 2).
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit, tag or branch to build (defaults to the branch this is dispatched on)"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false # a release build is never worth cancelling halfway
+
+# Least privilege: reads the repo, writes nothing back. Artifacts go to the run,
+# not to a release. No secrets are used, so there is nothing here to exfiltrate.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Pinned so a rebuild of the same commit uses the same tooling. The §C.4 record
+  # names these versions beside the artifact hashes.
+  TRUNK_VERSION: "0.21.14"
+  TAURI_CLI_VERSION: "2.11.4"
+
+jobs:
+  build:
+    name: Build engine, apps and the .app bundle
+    # Apple Silicon, pinned: the shipped artifact is aarch64-apple-darwin, and a
+    # `macos-latest` that moved architecture would silently ship the wrong one.
+    runs-on: macos-14
+
+    steps:
+      # Third-party actions are pinned to a commit SHA (not a mutable tag) so a
+      # moved or compromised tag cannot inject code into a release build.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false # no GITHUB_TOKEN left in .git/config
+
+      - name: Read the pinned toolchain
+        id: rust
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+          targets: wasm32-unknown-unknown # the Leptos frontend
+
+      # trunk and tauri-cli are compiled here rather than downloaded from a
+      # third-party action, so the only new supply-chain input is crates.io,
+      # which `cargo audit` and `cargo deny` already cover. The cache key holds
+      # both versions, so a bump rebuilds them and nothing else.
+      - name: Cache build tools
+        id: tools-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/trunk
+            ~/.cargo/bin/cargo-tauri
+          key: ${{ runner.os }}-tools-trunk${{ env.TRUNK_VERSION }}-tauri${{ env.TAURI_CLI_VERSION }}
+
+      - name: Install trunk and tauri-cli
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo install --locked trunk@"$TRUNK_VERSION"
+          cargo install --locked tauri-cli@"$TAURI_CLI_VERSION"
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-release-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-release-cargo-
+
+      # Recorded in the run log so the §C.4 provenance line can name the exact
+      # toolchain that produced these hashes.
+      - name: Record build provenance
+        run: |
+          echo "commit : $(git rev-parse HEAD)"
+          echo "ref    : ${{ inputs.ref || github.ref }}"
+          rustc -vV
+          cargo -V
+          trunk --version
+          cargo tauri --version
+          echo "version: $(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+
+      # Belt-and-braces beside the runner account: shortens the registry and
+      # toolchain prefixes that would otherwise appear in panic strings, so the
+      # artifact carries less build-environment detail either way.
+      - name: Set path-remapping flags
+        run: |
+          cargo_home="${CARGO_HOME:-$HOME/.cargo}"
+          rustup_home="${RUSTUP_HOME:-$HOME/.rustup}"
+          echo "RUSTFLAGS=--remap-path-prefix=$cargo_home=/cargo --remap-path-prefix=$rustup_home=/rustup --remap-path-prefix=$PWD=/xoksa" >> "$GITHUB_ENV"
+
+      # Build order is the release recipe in security-assessment.md §C.1:
+      # frontend, engine, settings app, sidecars, bundle.
+      - name: Build the WASM frontend (trunk)
+        working-directory: webui-leptos
+        run: trunk build --release
+
+      - name: Build the engine
+        run: cargo build --release --bin xoksa
+
+      - name: Build the settings app
+        working-directory: xoksa-setup
+        run: cargo build --release
+
+      # Stages BOTH sidecars and refuses to stage one whose version does not
+      # match Cargo.toml, so a missed rebuild fails here rather than shipping —
+      # which is what put a 2.8 settings app into a 2.9.9 installer.
+      - name: Stage the Tauri sidecars
+        run: bash scripts/bundle-engine.sh
+
+      # No APPLE_SIGNING_IDENTITY in the environment, so tauri leaves the bundle
+      # unsigned — which is what the signing step on the owner's machine expects.
+      # `--bundles app` skips the DMG this workflow deliberately does not ship.
+      - name: Build the .app bundle
+        working-directory: xoksa-desktop
+        run: cargo tauri build --bundles app
+
+      - name: Locate the bundle
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+          app="$(find . -type d -name 'XOKSA.app' -path '*/bundle/macos/*' | head -1)"
+          test -n "$app" || { echo "no .app produced" >&2; exit 1; }
+          echo "XOKSA_VERSION=$version" >> "$GITHUB_ENV"
+          echo "XOKSA_APP=$app" >> "$GITHUB_ENV"
+          echo "bundle: $app"
+
+      # The gate this workflow exists for: it fails the build if any shipped file
+      # carries a home-directory path belonging to an account that is not a known
+      # build account — which is what a developer-machine build produces.
+      #
+      # Seven files: the three standalone binaries, the three copies inside the
+      # bundle (those are what actually ship), and the WASM the browser fetches.
+      - name: Gate — no identifying build path in any artifact
+        run: |
+          wasm="$(find webui-leptos/dist -name '*_bg.wasm' | head -1)"
+          bash scripts/check-no-host-paths.sh \
+            "target/release/xoksa" \
+            "xoksa-desktop/target/release/xoksa-desktop" \
+            "xoksa-setup/target/release/xoksa-setup" \
+            "$XOKSA_APP/Contents/MacOS/xoksa" \
+            "$XOKSA_APP/Contents/MacOS/xoksa-desktop" \
+            "$XOKSA_APP/Contents/MacOS/xoksa-setup" \
+            "$wasm"
+
+      # A tar keeps the bundle's structure, symlinks and execute bits, which
+      # upload-artifact's own zip would flatten. COPYFILE_DISABLE stops bsdtar
+      # from adding `._` AppleDouble members, so the archive unpacks to exactly
+      # the bundle CI built — which is what the signing step then works on.
+      - name: Pack the bundle
+        run: |
+          tar_name="XOKSA-${XOKSA_VERSION}-arm64-app-unsigned.tar.gz"
+          COPYFILE_DISABLE=1 tar -czf "$tar_name" \
+            -C "$(dirname "$XOKSA_APP")" "$(basename "$XOKSA_APP")"
+          echo "XOKSA_APP_TAR=$tar_name" >> "$GITHUB_ENV"
+
+      # `shasum` because macOS ships no `sha256sum`. The bundle copies are hashed
+      # rather than the standalone binaries: those are the files that ship, and
+      # the signing step needs a before-signature hash to compare against.
+      - name: Hash the artifacts
+        run: |
+          wasm="$(find webui-leptos/dist -name '*_bg.wasm' | head -1)"
+          {
+            echo "# XOKSA ${XOKSA_VERSION} macOS arm64 (unsigned)"
+            echo "# commit $(git rev-parse HEAD)"
+            echo "# built by ${{ github.workflow }} run ${{ github.run_id }}"
+            echo
+            shasum -a 256 "$XOKSA_APP_TAR" \
+                          "$XOKSA_APP/Contents/MacOS/xoksa" \
+                          "$XOKSA_APP/Contents/MacOS/xoksa-desktop" \
+                          "$XOKSA_APP/Contents/MacOS/xoksa-setup" \
+                          "$wasm"
+          } | tee SHA256SUMS
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: xoksa-${{ env.XOKSA_VERSION }}-macos-arm64-unsigned
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            ${{ env.XOKSA_APP_TAR }}
+            webui-leptos/dist/*_bg.wasm
+            SHA256SUMS

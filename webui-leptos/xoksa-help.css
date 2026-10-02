@@ -1,0 +1,12 @@
+/* Styles for the Help / command-reference popup window. Served as a static asset
+   (trunk copy-file) and linked by the popup via an absolute same-origin URL, so it
+   works under a strict CSP (style-src 'self') in every browser — CSSOM
+   adoptedStyleSheets is not applied to about:blank popups in Firefox. */
+:root { color-scheme: dark }
+body { margin: 0; padding: 14px 16px; background: #0e1116; color: #e6e6e6; font: 14px/1.55 system-ui, 'Segoe UI', sans-serif }
+h1 { font-size: 1.05em; margin: 0 0 4px }
+.note { color: #9aa4b2; font-size: .85em; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid #2a2f3a }
+.cmd { display: grid; grid-template-columns: minmax(160px, max-content) 1fr; gap: 6px 16px; padding: 6px 8px; margin: 0 -8px; border-bottom: 1px dashed #2a2f3a; align-items: baseline; cursor: pointer; border-radius: 6px }
+.cmd:hover { background: #1a1f29 }
+code { font-family: ui-monospace, Consolas, monospace; color: #6ea8fe; white-space: nowrap }
+span { color: #e6e6e6 }

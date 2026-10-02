@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark" data-font="m">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>XOKSA Web UI</title>
+    <link data-trunk rel="css" href="style.css" />
+    <!-- Popup-window stylesheets: copied verbatim to dist (served same-origin) and
+         linked by the Help/Chart popups via an absolute URL. Kept out of the main
+         bundle so their generic selectors (body, h1, …) never touch the dashboard. -->
+    <link data-trunk rel="copy-file" href="xoksa-help.css" />
+    <link data-trunk rel="copy-file" href="xoksa-chart.css" />
+    <link data-trunk rel="rust" />
+  </head>
+  <body></body>
+</html>

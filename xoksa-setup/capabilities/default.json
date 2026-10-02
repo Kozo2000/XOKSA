@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Base capability for the settings app main window (local app origin). core:default UI operations, the app-defined setup commands (password gate, config load/save, token generation, engine start/restart, Ollama list, channel test), and a user-initiated file-open dialog for the alias CSV path. No remote grant, no shell, no arbitrary filesystem/http.",
+  "windows": ["main"],
+  "permissions": ["core:default", "allow-setup-commands", "dialog:allow-open"]
+}

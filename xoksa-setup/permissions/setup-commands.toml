@@ -1,0 +1,23 @@
+"$schema" = "schemas/schema.json"
+
+# The settings app's local (app-origin) commands. Tauri 2 requires an explicit ACL
+# grant for every app-defined command (no implicit local trust), so the settings
+# window needs these to gate on the password, read/write config + keys over the IPC
+# boundary → OS keychain, generate the access token, restart the engine, and quit cleanly.
+# Granted only to the app-origin `default` capability.
+[[permission]]
+identifier = "allow-setup-commands"
+description = "Settings app commands: password verify/change, config load/save, access-token generate, engine restart, Ollama model list, channel test, unsaved-changes flag, quit."
+commands.allow = [
+  "verify_password",
+  "change_password",
+  "load_config",
+  "save_config",
+  "get_token",
+  "generate_token",
+  "list_ollama_models",
+  "test_notify",
+  "restart_engine",
+  "set_unsaved",
+  "quit_app",
+]

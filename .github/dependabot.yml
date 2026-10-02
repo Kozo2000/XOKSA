@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # Native crate dependencies (Cargo.lock). Surfaces vulnerable/outdated crates.
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Web UI (Leptos/WASM) crate — separate workspace, its own Cargo.lock.
+  - package-ecosystem: "cargo"
+    directory: "/webui-leptos"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions — keeps the SHA-pinned actions in ci.yml current.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

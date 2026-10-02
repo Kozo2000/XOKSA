@@ -1,0 +1,45 @@
+# XOKSA desktop app — a thin UI shell (Tauri) around the local engine.
+#
+# Standalone workspace (mirrors webui-leptos): intentionally NOT part of the
+# native `xoksa` workspace, with its own Cargo.lock, so the CLI/server build,
+# fmt, clippy, test, and CI are unaffected. Root `cargo build` excludes it.
+#
+# It deliberately does NOT depend on the `xoksa` crate: the desktop is a UI shell
+# only, so it cannot link any engine/analysis code (SOT). It launches the `xoksa`
+# engine binary shipped alongside it as a child process (`xoksa serve`) and points
+# an OS WebView at the loopback dashboard. See docs/dev-prog/security-design.md §6.
+[package]
+name = "xoksa-desktop"
+version = "2.9.10"
+edition = "2021"
+publish = false
+description = "XOKSA desktop app (thin UI shell that launches the xoksa engine)"
+
+# Windows PE version resource. tauri-build embeds a single VERSIONINFO via
+# tauri-winres, whose WindowsResource::new() reads this table. tauri-build sets
+# ProductName / FileDescription / CompanyName / LegalCopyright / File+ProductVersion
+# from tauri.conf.json but NEVER sets OriginalFilename, so it is set here (it
+# survives — tauri-build does not override it). Adding `winresource` in build.rs
+# instead would embed a SECOND RT_VERSION and fail to link (tauri #10154). A
+# descriptive FileDescription is applied post-build with rcedit, because tauri-build
+# force-sets FileDescription = productName and would overwrite a value set here.
+[package.metadata.tauri-winres]
+OriginalFilename = "xoksa-desktop.exe"
+
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Single source of truth for the canonical config dir — the SAME crate the engine
+# uses (xoksa_paths::config_dir), so the location is defined in exactly one place.
+xoksa-paths = { path = "../xoksa-paths" }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

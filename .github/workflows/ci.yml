@@ -1,0 +1,229 @@
+name: CI
+
+on:
+  # Work branches are covered by their pull request, so they are deliberately not
+  # listed here: with both triggers a branch that has an open PR runs the whole
+  # workflow twice per push, doubling Actions minutes for no extra coverage.
+  push:
+    branches: [ "main", "release/**" ]
+  pull_request:
+    branches: [ "main" ]
+
+# A push that supersedes an earlier one cancels its run instead of letting both
+# finish — several such pairs are visible in this repo's run history, each paying
+# for a result nobody reads. `main` is excluded so its history keeps a run each.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Least privilege. This workflow only reads the repo and uses NO secrets, so a
+# malicious fork PR (which runs read-only with no secret access under the
+# `pull_request` trigger) has nothing to escalate or exfiltrate.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Format / Lint / Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # Third-party actions are pinned to a commit SHA (not a mutable tag) so a
+      # moved/compromised tag cannot inject code into CI. Dependabot keeps the
+      # pins current (see .github/dependabot.yml).
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # do not leave the GITHUB_TOKEN in .git/config
+
+      # The version lives in rust-toolchain.toml and nowhere else. Reading it
+      # here means the action installs that toolchain outright, instead of
+      # installing `stable` and leaving rustup to auto-install the pinned one on
+      # the first cargo call — a path rustup reports as deprecated.
+      - name: Read the pinned toolchain
+        id: rust
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown # webui-leptos (WASM frontend) clippy
+
+      - name: Install system dependencies (native-tls + Tauri desktop shell)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: cargo fmt --check
+        run: cargo fmt -- --check
+
+      # The engine embeds webui-leptos/dist via include_dir! (default `embedded-ui`
+      # feature). dist is a gitignored build artifact and is not needed to lint or
+      # test the engine's Rust, so stand in a minimal placeholder here — the real UI
+      # is built with trunk for shipped binaries. Without this, clippy/test panic:
+      # `"webui-leptos/dist" is not a directory`.
+      - name: Stub the embedded UI dir (for include_dir!)
+        run: |
+          mkdir -p webui-leptos/dist
+          echo '<!doctype html><title>xoksa</title>' > webui-leptos/dist/index.html
+
+      - name: cargo clippy -D warnings
+        run: cargo clippy -- -D warnings
+
+      - name: cargo test -q
+        run: cargo test -q
+
+      # webui-leptos and xoksa-desktop are separate workspaces; the checks above
+      # only cover the root crate. Gate their format and lint too.
+      - name: cargo fmt --check (webui-leptos)
+        run: cargo fmt --manifest-path webui-leptos/Cargo.toml -- --check
+
+      - name: cargo clippy -D warnings (webui-leptos)
+        run: cargo clippy --manifest-path webui-leptos/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
+      - name: cargo fmt --check (xoksa-desktop)
+        run: cargo fmt --manifest-path xoksa-desktop/Cargo.toml -- --check
+
+      # tauri-build validates every externalBin sidecar path (bundle.externalBin
+      # "binaries/xoksa" AND "binaries/xoksa-setup") for the host target triple even
+      # on a plain clippy/check. The sidecars (xoksa-desktop/binaries/) are gitignored
+      # build artifacts absent on CI, so stand in empty placeholders for the runner's
+      # triple. The real binaries are staged there only when building an installer.
+      - name: Stub the desktop engine sidecars (for tauri-build externalBin)
+        run: |
+          mkdir -p xoksa-desktop/binaries
+          triple="$(rustc -vV | sed -n 's/^host: //p')"
+          touch "xoksa-desktop/binaries/xoksa-$triple"
+          touch "xoksa-desktop/binaries/xoksa-setup-$triple"
+
+      - name: cargo clippy -D warnings (xoksa-desktop)
+        run: cargo clippy --manifest-path xoksa-desktop/Cargo.toml -- -D warnings
+
+      # xoksa-paths is a tiny shared crate (the single canonical config path,
+      # depended on by both the engine and the desktop). It is excluded from the
+      # root workspace, so the checks above do not cover it — gate its format, lint
+      # and its table-driven tests (migration-source / path resolution) directly.
+      - name: cargo fmt --check (xoksa-paths)
+        run: cargo fmt --manifest-path xoksa-paths/Cargo.toml -- --check
+
+      - name: cargo clippy + test (xoksa-paths)
+        run: |
+          cargo clippy --manifest-path xoksa-paths/Cargo.toml -- -D warnings
+          cargo test --manifest-path xoksa-paths/Cargo.toml
+
+  # Supply-chain gate: fail on dependencies with known RustSec advisories.
+  # Scans the native crate's Cargo.lock. To accept a non-fixable advisory,
+  # pin an ignore, e.g. `cargo audit --ignore RUSTSEC-YYYY-NNNN`.
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the pinned toolchain
+        id: rust
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: cargo audit (native)
+        run: cargo audit
+
+      # The WASM frontend (webui-leptos) is its own workspace with a separate
+      # Cargo.lock, so the native scan above does not cover it. Audit it too —
+      # its deps run in the user's browser.
+      - name: cargo audit (webui-leptos / WASM frontend)
+        run: cargo audit -f webui-leptos/Cargo.lock
+
+  # Supply-chain gate #2: license compliance + advisories + banned crates +
+  # source allowlist, across BOTH workspaces. `cargo audit` only checks
+  # advisories; cargo-deny adds license compatibility (mandatory for an MIT
+  # binary redistributing ~388 + ~185 crates) and a crates.io-only source rule.
+  # Config: deny.toml. To accept an advisory/license, edit deny.toml with a reason.
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the pinned toolchain
+        id: rust
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: cargo deny check (native)
+        run: cargo deny check
+
+      - name: cargo deny check (webui-leptos / WASM frontend)
+        run: cargo deny --manifest-path webui-leptos/Cargo.toml --config deny.toml check
+
+  # Hygiene gate: fail if a declared dependency is never used (dead weight /
+  # needless attack surface). Scans both workspaces. False positives (e.g. a
+  # dep pulled in only to select a backend) are listed under
+  # [package.metadata.cargo-machete] `ignored` with a reason.
+  machete:
+    name: cargo machete
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the pinned toolchain
+        id: rust
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+
+      - name: Install cargo-machete
+        run: cargo install cargo-machete --locked
+
+      - name: cargo machete (both workspaces)
+        run: cargo machete
