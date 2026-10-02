@@ -82,7 +82,7 @@ axum = "0.8"
 # `/manual/*` route served by `serve --ui` and the desktop app.
 
 # CSPRNG for per-client Web session IDs (random cookie token). OS-backed entropy.
-getrandom = "0.2"
+getrandom = "0.4"
 
 # Optional: embed webui-leptos/dist into the binary (the `embedded-ui` feature,
 # used for release builds). Only pulled in when that feature is enabled.
