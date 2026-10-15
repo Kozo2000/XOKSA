@@ -1,0 +1,182 @@
+name: Package signed installer (Windows)
+
+# Second half of the Windows release. release-windows.yml compiles everything and
+# leaves in its artifact the three executables as they sit inside the installer
+# (to-sign/). Those are signed on the owner's machine — the key lives in Certum's
+# cloud (SimplySign) and is unlocked with a one-time code from the owner's phone,
+# so no runner can sign — and attached to a draft release. This run takes them
+# back and packages the installer. Nothing is compiled here.
+#
+# It refuses unless every executable carries a valid signature, is the first
+# run's executable once the signature is removed, and comes out of the finished
+# MSI byte for byte. It does not sign the MSI and does not publish (§C.1).
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: "Run ID of the 'Release build (Windows)' run whose executables were signed"
+        required: true
+        type: string
+      release_tag:
+        description: "Draft release holding the signed executables"
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.build_run }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read  # checkout and the draft release (to be confirmed by the first run)
+  actions: read   # the first run's artifact
+
+env:
+  CARGO_TERM_COLOR: always
+  # Same pin as release-windows.yml, so the packaging step is the same tool.
+  TAURI_CLI_VERSION: "2.11.4"
+  GH_TOKEN: ${{ github.token }}
+  BUILD_RUN: ${{ inputs.build_run }}
+  RELEASE_TAG: ${{ inputs.release_tag }}
+
+jobs:
+  package:
+    name: Package the signed executables
+    runs-on: windows-latest
+
+    steps:
+      # Into RUNNER_TEMP, so the checkout below cannot clean it away.
+      - name: Fetch the first run's artifact
+        id: src
+        shell: bash
+        run: |
+          gh run view "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --json workflowName,conclusion \
+            -q 'select(.workflowName == "Release build (Windows)" and .conclusion == "success")' | grep -q . \
+            || { echo "run $BUILD_RUN is not a successful 'Release build (Windows)'" >&2; exit 1; }
+          gh run download "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/build"
+          sums="$(find "$RUNNER_TEMP/build" -name SHA256SUMS | head -1)"
+          test -n "$sums" || { echo "no SHA256SUMS in run $BUILD_RUN" >&2; exit 1; }
+          echo "dir=$(dirname "$sums")" >> "$GITHUB_OUTPUT"
+          echo "sha=$(sed -n 's/^# commit //p' "$sums")" >> "$GITHUB_OUTPUT"
+          echo "version=$(sed -n 's/^# XOKSA \([^ ]*\) .*/\1/p' "$sums")" >> "$GITHUB_OUTPUT"
+
+      # Third-party actions are pinned to a commit SHA, as in release-windows.yml.
+      - name: Checkout the commit the first run built
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.src.outputs.sha }}
+          persist-credentials: false # no GITHUB_TOKEN left in .git/config
+
+      - name: Read the pinned toolchain
+        id: rust
+        shell: bash
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: ${{ steps.rust.outputs.channel }}
+
+      - name: Cache tauri-cli
+        id: tools-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri.exe
+          key: ${{ runner.os }}-tools-tauri${{ env.TAURI_CLI_VERSION }}
+
+      - name: Install tauri-cli
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: cargo install --locked tauri-cli@"$TAURI_CLI_VERSION"
+
+      - name: Fetch the signed executables
+        shell: bash
+        run: gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.exe' --dir "$RUNNER_TEMP/signed"
+
+      # Valid signature, and — with the signature removed and the PE checksum
+      # (which signtool rewrites) zeroed — identical to what the first run built.
+      - name: Gate — signed, and the first run's executables
+        shell: bash
+        env:
+          UNSIGNED: ${{ steps.src.outputs.dir }}/to-sign
+        run: |
+          st="$(ls "/c/Program Files (x86)/Windows Kits/10/bin/"*/x64/signtool.exe | sort -V | tail -1)"
+          for f in xoksa.exe xoksa-setup.exe xoksa-desktop.exe; do
+            "$st" verify //pa "$RUNNER_TEMP/signed/$f"
+            cp "$RUNNER_TEMP/signed/$f" "$RUNNER_TEMP/stripped-$f"
+            "$st" remove //s "$RUNNER_TEMP/stripped-$f"
+            python - "$RUNNER_TEMP/stripped-$f" "$UNSIGNED/$f" <<'PY'
+          import sys
+          def body(p):
+              b = bytearray(open(p, "rb").read())
+              o = int.from_bytes(b[0x3c:0x40], "little") + 0x58   # OptionalHeader.CheckSum
+              b[o:o + 4] = b"\0\0\0\0"
+              return bytes(b)
+          a, u = sys.argv[1:3]
+          if body(a) != body(u):
+              sys.exit(f"{u}: the signed file is not this run's executable")
+          PY
+          done
+
+      - name: Stage the signed executables
+        shell: bash
+        run: |
+          triple="$(rustc -vV | sed -n 's/^host: //p')"
+          mkdir -p xoksa-desktop/binaries xoksa-desktop/target/release
+          cp "$RUNNER_TEMP/signed/xoksa.exe"         "xoksa-desktop/binaries/xoksa-$triple.exe"
+          cp "$RUNNER_TEMP/signed/xoksa-setup.exe"   "xoksa-desktop/binaries/xoksa-setup-$triple.exe"
+          cp "$RUNNER_TEMP/signed/xoksa-desktop.exe" xoksa-desktop/target/release/xoksa-desktop.exe
+
+      - name: Package the installer (no compilation)
+        shell: bash
+        working-directory: xoksa-desktop
+        run: cargo tauri bundle --bundles msi
+
+      - name: Collect the installer
+        shell: bash
+        env:
+          XOKSA_VERSION: ${{ steps.src.outputs.version }}
+        run: |
+          msi="$(find xoksa-desktop/target/release/bundle/msi -name '*.msi' | head -1)"
+          test -n "$msi" || { echo "no MSI produced" >&2; exit 1; }
+          mkdir -p target/release
+          mv "$msi" "target/release/XOKSA-${XOKSA_VERSION}-x64.msi"
+          echo "XOKSA_VERSION=$XOKSA_VERSION" >> "$GITHUB_ENV"
+
+      - name: Gate — the installer carries the signed executables unchanged
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path "target/release/XOKSA-$env:XOKSA_VERSION-x64.msi").Path
+          $out = Join-Path $env:RUNNER_TEMP 'packaged'
+          $p = Start-Process msiexec.exe -ArgumentList @('/a', "`"$msi`"", '/qn', "TARGETDIR=`"$out`"") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "msiexec /a exited $($p.ExitCode)" }
+          foreach ($f in 'xoksa.exe', 'xoksa-setup.exe', 'xoksa-desktop.exe') {
+            $a = (Get-FileHash (Join-Path $out "PFiles/XOKSA/$f")).Hash
+            $b = (Get-FileHash (Join-Path $env:RUNNER_TEMP "signed/$f")).Hash
+            if ($a -ne $b) { throw "$f inside the MSI is not the signed file" }
+          }
+
+      - name: Gate — no identifying build path in the installer
+        shell: bash
+        run: bash scripts/check-no-host-paths.sh "target/release/XOKSA-${XOKSA_VERSION}-x64.msi"
+
+      - name: Hash the installer
+        shell: bash
+        run: |
+          {
+            echo "# XOKSA ${XOKSA_VERSION} Windows x86_64 — installer packaged from signed executables (MSI itself unsigned)"
+            echo "# commit $(git rev-parse HEAD)"
+            echo "# built by run ${BUILD_RUN}; executables from release ${RELEASE_TAG}; packaged by run ${{ github.run_id }}"
+            echo
+            sha256sum "target/release/XOKSA-${XOKSA_VERSION}-x64.msi" "$RUNNER_TEMP"/signed/*.exe
+          } | tee SHA256SUMS
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: xoksa-${{ env.XOKSA_VERSION }}-windows-x86_64-packaged
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            target/release/XOKSA-${{ env.XOKSA_VERSION }}-x64.msi
+            SHA256SUMS
