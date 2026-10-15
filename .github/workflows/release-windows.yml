@@ -147,10 +147,11 @@ jobs:
       - name: Build the installer
         shell: bash
         working-directory: xoksa-desktop
-        run: cargo tauri build
+        run: cargo tauri build --bundles msi
 
-      # One MSI, one location (target/release/XOKSA-<version>-x64.msi). The NSIS
-      # output `targets: "all"` also produces is not shipped and is discarded.
+      # One MSI, one location (target/release/XOKSA-<version>-x64.msi). It is not
+      # the shipped installer: release-windows-package.yml packages that one from
+      # the executables below once they are signed.
       - name: Collect the installer
         shell: bash
         run: |
@@ -158,8 +159,31 @@ jobs:
           msi="$(find xoksa-desktop/target/release/bundle/msi -name '*.msi' | head -1)"
           test -n "$msi" || { echo "no MSI produced" >&2; exit 1; }
           mv "$msi" "target/release/XOKSA-${version}-x64.msi"
-          rm -rf xoksa-desktop/target/release/bundle/nsis
           echo "XOKSA_VERSION=$version" >> "$GITHUB_ENV"
+
+      # The executables to sign are taken from inside the installer, not from
+      # target/: Tauri stamps the bundle type ("MSI") into the copy of
+      # xoksa-desktop.exe it packs — three bytes the standalone build carries as
+      # "UNK". Signing the standalone file and packaging it later lets that stamp
+      # break the signature; signing the packed copy makes the stamp a no-op
+      # (measured 2026-10-15).
+      - name: Stage the executables for signing
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path "target/release/XOKSA-$env:XOKSA_VERSION-x64.msi").Path
+          $out = Join-Path $PWD 'msi-extract'
+          $p = Start-Process msiexec.exe -ArgumentList @('/a', "`"$msi`"", '/qn', "TARGETDIR=`"$out`"") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "msiexec /a exited $($p.ExitCode)" }
+          New-Item -ItemType Directory -Force -Path to-sign | Out-Null
+          Copy-Item (Join-Path $out 'PFiles/XOKSA/*.exe') -Destination to-sign
+
+      - name: Gate — the staged executables are the built ones
+        shell: bash
+        run: |
+          cmp to-sign/xoksa.exe target/release/xoksa.exe
+          cmp to-sign/xoksa-setup.exe xoksa-setup/target/release/xoksa-setup.exe
+          n="$({ cmp -l to-sign/xoksa-desktop.exe xoksa-desktop/target/release/xoksa-desktop.exe || true; } | wc -l)"
+          test "$n" -le 3 || { echo "xoksa-desktop.exe differs from the build in $n bytes; only the 3-byte bundle stamp is expected" >&2; exit 1; }
 
       # The gate this workflow exists for. It fails the build if any shipped file
       # carries a home-directory path belonging to an account that is not a known
@@ -173,7 +197,10 @@ jobs:
             "xoksa-desktop/target/release/xoksa-desktop.exe" \
             "xoksa-setup/target/release/xoksa-setup.exe" \
             "$wasm" \
-            "target/release/XOKSA-${XOKSA_VERSION}-x64.msi"
+            "target/release/XOKSA-${XOKSA_VERSION}-x64.msi" \
+            to-sign/xoksa.exe \
+            to-sign/xoksa-desktop.exe \
+            to-sign/xoksa-setup.exe
 
       - name: Hash the artifacts
         shell: bash
@@ -188,7 +215,10 @@ jobs:
                       "target/release/xoksa.exe" \
                       "xoksa-desktop/target/release/xoksa-desktop.exe" \
                       "xoksa-setup/target/release/xoksa-setup.exe" \
-                      "$wasm"
+                      "$wasm" \
+                      to-sign/xoksa.exe \
+                      to-sign/xoksa-desktop.exe \
+                      to-sign/xoksa-setup.exe
           } | tee SHA256SUMS
 
       - name: Upload artifacts
@@ -203,4 +233,5 @@ jobs:
             xoksa-desktop/target/release/xoksa-desktop.exe
             xoksa-setup/target/release/xoksa-setup.exe
             webui-leptos/dist/*_bg.wasm
+            to-sign/*.exe
             SHA256SUMS
