@@ -16,7 +16,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [2.9.10] — unreleased
+## [2.9.11] — unreleased
+
+**The Windows release is signed.** Every executable on Windows and the installer that carries them now bear a code signature, and the release pipeline was split so that compiling and packaging stay on CI while signing happens where the key can be used.
+
+### Security
+- **Signed Windows executables and installer.** `xoksa-desktop.exe`, `xoksa.exe`, `xoksa-setup.exe` and the MSI carry an Authenticode signature from a Certum Open Source Code Signing certificate (`CN=Open Source Developer Kohzoh Tsuchiya`, RSA 3072), timestamped by Certum so a signature stays valid after the certificate expires. The key lives in Certum's cloud (SimplySign), is not exportable, and is unlocked with a one-time code from the owner's phone — so no CI runner can sign. UAC names the publisher instead of "unknown publisher"; SmartScreen reputation accrues on the certificate rather than being granted at once, so the full-screen warning is expected to persist for a while after the first signed release. ([.github/workflows/release-windows.yml](.github/workflows/release-windows.yml), [.github/workflows/release-windows-package.yml](.github/workflows/release-windows-package.yml))
+- **`rustls` 0.23.46** for RUSTSEC-2026-0346, -0347, -0348 and -0349, published after the 2.9.10 build; each names 0.23.46 as the fix. Whether the way XOKSA uses `rustls` reaches any of the four has not been assessed. ([Cargo.lock](Cargo.lock))
+
+### Changed
+- **The Windows release is two CI runs with signing between them.** The first compiles and packs an MSI that is not shipped; the executables are taken from inside it, because Tauri stamps the bundle type into the copy of `xoksa-desktop.exe` it packs (three bytes, `UNK` → `MSI`) and a signature applied before that stamp breaks inside the installer (measured: `0x80096010`). The second packages the shipped MSI from the signed executables without compiling, and refuses unless each is validly signed, is the first run's executable once the signature is removed, and comes out of the MSI byte for byte. NSIS is no longer built only to be discarded.
+- **Dependencies.** serde_json 1.0.154, clap 4.6.7, futures 0.3.34, apple-native-keyring-store 1.0.2; `dtolnay/rust-toolchain` pinned to `e2a55d2`. leptos 0.8.22 is **not** taken: it puts `syn` 2 and 3 in one graph and `server_fn_macro_default` no longer compiles (its own update PR fails CI the same way).
+- **`zip` 8.6.0 is allowed although yanked.** Every `zip` 8.x release was yanked from crates.io (found 2026-10-16) with no RustSec advisory; `calamine` 0.36.1, the latest, requires `zip` ^8.6, and no `calamine` uses `zip` 9 yet. The lockfile keeps building; `deny.toml` records the exception and its reason, to be removed when `calamine` moves. ([deny.toml](deny.toml))
+- **Cargo metadata.** The repository is named, and the root crate can no longer be published by mistake. ([Cargo.toml](Cargo.toml))
+- **Versions aligned to 2.9.11** across the engine, desktop app, settings app and web UI, including each sub-crate's `Cargo.lock`; MSI name `XOKSA-2.9.11-x64.msi`.
+
+### Documentation
+- **The certificate is named correctly**, Certum Open Source Code Signing rather than the standard product, in every place the records named it. **What a first-time user sees on the unsigned 2.9.10** — SmartScreen, then UAC, both showing an unknown publisher — is measured on a clean Windows 10, as the "before" half of signing. ([docs/dev-prog/security-assessment.md](docs/dev-prog/security-assessment.md))
+
+---
+
+## [2.9.10] — shipped 2026-10-03 (Windows and macOS)
 
 **A pass over the paths that touch a key, the network and the LLM's own output.** Every item below was measured before it was changed — on the shipped 2.9.9 binary where that was possible — and the two that turned out worse than the review that proposed them say so.
 
@@ -102,7 +122,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [2.9.10] — 未リリース
+## [2.9.11] — 未リリース
+
+**Windows の出荷物に署名した。** Windows のすべての実行ファイルと、それを収めるインストーラーにコード署名が付く。コンパイルと組み立ては CI に残し、署名は鍵を使える場所で行うよう、リリースの流れを 2 段に分けた。
+
+### Security
+- **Windows の実行ファイルとインストーラーに署名。** `xoksa-desktop.exe`・`xoksa.exe`・`xoksa-setup.exe` と MSI に、Certum の Open Source Code Signing 証明書（`CN=Open Source Developer Kohzoh Tsuchiya`、RSA 3072）による Authenticode 署名を付ける。Certum のタイムスタンプを付けるため、証明書の期限が切れても署名は有効なまま。鍵は Certum のクラウド（SimplySign）にあって取り出せず、オーナーのスマホのワンタイムコードで使う——したがって CI のランナーでは署名できない。UAC は「不明な発行元」ではなく発行元の名前を表示する。SmartScreen の評価は付与されるのではなく証明書に対して積み上がるため、最初の署名済みリリースのあとも、しばらく全画面の警告は残る見込み。([.github/workflows/release-windows.yml](.github/workflows/release-windows.yml), [.github/workflows/release-windows-package.yml](.github/workflows/release-windows-package.yml))
+- **`rustls` 0.23.46。** 2.9.10 のビルド後に公開された RUSTSEC-2026-0346・-0347・-0348・-0349 への対応で、いずれも 0.23.46 を修正版としている。XOKSA の `rustls` の使い方が 4 件のどれかに該当するかは、評価していない。([Cargo.lock](Cargo.lock))
+
+### Changed
+- **Windows のリリースを、署名を挟んだ CI の 2 段にした。** 1 段目はコンパイルし、出荷しない MSI を組む。実行ファイルはその MSI の中から取り出す。Tauri は MSI に詰める `xoksa-desktop.exe` のコピーに束ね方の印（3 バイト、`UNK` → `MSI`）を書き込むため、その前に付けた署名はインストーラーの中で壊れる（実測：`0x80096010`）。2 段目は署名済みの実行ファイルから、コンパイルせずに出荷用の MSI を組み、各実行ファイルについて、署名が有効であること・署名を外すと 1 段目の実行ファイルと一致すること・MSI から取り出すとバイト単位で一致することを満たさなければ止まる。捨てるためだけに NSIS を作ることもやめた。
+- **依存の更新。** serde_json 1.0.154、clap 4.6.7、futures 0.3.34、apple-native-keyring-store 1.0.2。`dtolnay/rust-toolchain` を `e2a55d2` に固定。leptos 0.8.22 は**取り込まない**：依存に `syn` の 2 系と 3 系が混在し、`server_fn_macro_default` がコンパイルできなくなる（leptos 自身の更新 PR も同じ理由で CI が落ちる）。
+- **yank された `zip` 8.6.0 を許容する。** `zip` の 8 系は全版が crates.io で yank された（2026-10-16 に確認）が、RustSec の勧告は無い。最新の `calamine` 0.36.1 は `zip` ^8.6 を要求し、`zip` 9 を使う `calamine` はまだ無い。既存のロックファイルではビルドできる。例外とその理由を `deny.toml` に記録し、`calamine` が移行したら外す。([deny.toml](deny.toml))
+- **Cargo のメタデータ。** リポジトリを明記し、ルートのクレートを誤って公開できないようにした。([Cargo.toml](Cargo.toml))
+- **版を 2.9.11 に統一**（エンジン・デスクトップアプリ・設定アプリ・Web UI、各サブクレートの `Cargo.lock` を含む）。MSI 名は `XOKSA-2.9.11-x64.msi`。
+
+### Documentation
+- **証明書の名称を正した。** 記録が証明書に触れていた全箇所で、standard 版ではなく Certum Open Source Code Signing とした。**未署名の 2.9.10 で初回利用者が見る画面**——SmartScreen、続いて UAC、どちらも発行元不明——をクリーンな Windows 10 で実測し、署名の「前」の半分として記録した。([docs/dev-prog/security-assessment.md](docs/dev-prog/security-assessment.md))
+
+---
+
+## [2.9.10] — 出荷済み（Windows・macOS とも 2026-10-03）
 
 **鍵・ネットワーク・LLM の出力に触れる経路の点検。** 以下はすべて、変更の前に実測している（可能なものは出荷済みの 2.9.9 バイナリに対して）。提案元のレビューより実態が悪かった 2 件は、その旨を明記した。
 

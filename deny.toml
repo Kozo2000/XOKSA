@@ -15,8 +15,14 @@ yanked = "deny"
 ignore = [
     # Build-time proc-macros pulled transitively by Leptos: compile-time only,
     # NOT shipped in the WASM, not vulnerabilities. See security-assessment.md.
-    "RUSTSEC-2024-0436", # paste — unmaintained
-    "RUSTSEC-2026-0173", # proc-macro-error2 — unmaintained
+    { id = "RUSTSEC-2024-0436", reason = "paste — unmaintained; build-time proc-macro via Leptos" },
+    { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 — unmaintained; build-time proc-macro via Leptos" },
+    # Yanked, not vulnerable: every zip 8.x release was yanked from crates.io
+    # (found 2026-10-16) with no RustSec advisory, and calamine 0.36.1 — the
+    # latest, read by the spreadsheet import — requires zip ^8.6; no calamine
+    # release uses zip 9 yet. The existing lockfile keeps building. Remove this
+    # entry when calamine moves to zip 9.
+    { crate = "zip@8.6.0", reason = "all zip 8.x yanked without an advisory; calamine 0.36.1 requires ^8.6 (2026-10-16)" },
 ]
 
 [licenses]

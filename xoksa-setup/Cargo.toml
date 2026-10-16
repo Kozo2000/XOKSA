@@ -10,7 +10,7 @@
 # (apply-config / serve / config-json). See docs/dev-prog/security-design.md §6.
 [package]
 name = "xoksa-setup"
-version = "2.9.10"
+version = "2.9.11"
 edition = "2021"
 publish = false
 description = "XOKSA settings app (standalone engine setup: config, token, restart)"
