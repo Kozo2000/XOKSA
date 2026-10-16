@@ -2,9 +2,14 @@
 name = "xoksa"
 version = "2.9.10"
 edition = "2021"
-authors = ["kozo2000"]
+authors = ["XOKSA <info@xoksa.jp>"]
 description = "Stock analysis and news title triage tool using LLMs"
 license = "MIT"
+repository = "https://github.com/Kozo2000/XOKSA"
+# The engine ships as an inspected binary from GitHub Releases, not through
+# crates.io. The other four crates in this tree already say so; the root did
+# not, so it was the only one a stray `cargo publish` could have reached.
+publish = false
 
 # `native-tls` has no direct `use` — it is the TLS backend reqwest selects via
 # its default-tls feature (also pulled transitively). Kept as an explicit,
