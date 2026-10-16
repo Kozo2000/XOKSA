@@ -1,6 +1,6 @@
 [package]
 name = "xoksa"
-version = "2.9.10"
+version = "2.9.11"
 edition = "2021"
 authors = ["XOKSA <info@xoksa.jp>"]
 description = "Stock analysis and news title triage tool using LLMs"
