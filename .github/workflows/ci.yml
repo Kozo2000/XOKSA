@@ -157,8 +157,9 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
 
+      # The three zip ignores: reasons in deny.toml (extract is never called).
       - name: cargo audit (native)
-        run: cargo audit
+        run: cargo audit --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369
 
       # The WASM frontend (webui-leptos) is its own workspace with a separate
       # Cargo.lock, so the native scan above does not cover it. Audit it too —

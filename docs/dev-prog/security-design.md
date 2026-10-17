@@ -335,7 +335,7 @@ The path is constrained:
 
 ## 5. Distribution integrity & anti-malware false positives
 
-The **CLI / server binary (`xoksa`)** is an unsigned native binary that binds a loopback HTTP server, makes outbound HTTPS calls (LLM / market / news), and reads the OS keyring for API keys. That legitimate combination (network + credential-store access) is exactly what behavioral AV/ML engines score as suspicious, so a **false positive** on Defender / VirusTotal is a realistic risk even though this binary contains **none** of the classic malware markers:
+The **CLI / server binary (`xoksa`)** is a native binary — Authenticode-signed on Windows from 2.9.11, Developer ID–signed and notarized on macOS — that binds a loopback HTTP server, makes outbound HTTPS calls (LLM / market / news), and reads the OS keyring for API keys. That legitimate combination (network + credential-store access) is exactly what behavioral AV/ML engines score as suspicious, so a **false positive** on Defender / VirusTotal is a realistic risk even though this binary contains **none** of the classic malware markers:
 
 - No process spawning or shell-out (`std::process::Command` is not used in the analysis / CLI / server binary).
 - No `unsafe` (compiler-enforced via `#![forbid(unsafe_code)]`), no Win32/`winapi`/`LoadLibrary`/`VirtualAlloc`/`GetProcAddress`.
@@ -343,13 +343,13 @@ The **CLI / server binary (`xoksa`)** is an unsigned native binary that binds a 
 > **The desktop app (Tauri, §6) is a separate binary with a different profile** — it hosts an OS WebView and spawns the `xoksa` engine as a child process. Its anti-FP and signing posture is covered in §6, not by the bullets above.
 
 **Hardening checklist (release engineering):**
-1. **Code signing (Authenticode, ideally EV)** — the industry's definitive fix, and an immediate SmartScreen-reputation grant. macOS artifacts are signed + notarized; the Windows artifacts currently ship unsigned and control false positives at the build level instead (below, and §6).
+1. **Code signing (Authenticode, ideally EV)** — the industry's definitive fix, and an immediate SmartScreen-reputation grant. macOS artifacts are signed + notarized. From 2.9.11 the Windows artifacts are Authenticode-signed and timestamped (Certum Open Source Code Signing). The build-level controls below stay in place.
 2. **Ship and scan the release build only.** The `release` profile is hardened (`strip = true`, `lto = true`, `codegen-units = 1`) → a small, symbol-free binary. Debug builds (strings, paths, panic text, unoptimized) are far more FP-prone and must never be distributed or scanned.
 3. **Reproducible build + published SHA-256** so users can verify the artifact matches source.
 4. **False-positive submission** to Microsoft (and a VirusTotal rescan) when a detection appears; reputation also accrues with signing + download volume.
 5. Keyring (credential-store) access is a real feature and is kept; it is documented here as a known behavioral signal, not removed.
 
-**AV false positives — addressed in the build, not by signing.** The shipped desktop icon is constrained to uncompressed BMP frames (max 64×64) to keep the PE resource section small and low-entropy, which is what the behavioural ML engines score; the method and the reproducible experiment matrix are in [**av-false-positive-case-study.md**](./av-false-positive-case-study.md). A clean multi-engine scan is not an audit, and a first-scan flag on a new hash can be reputation rather than content — per-release scan results, bound to each artifact's hash, are recorded in the [shipping inspection](./security-assessment.md).
+**AV false positives — addressed in the build first; signing is added on top, not instead.** The shipped desktop icon is constrained to uncompressed BMP frames (max 64×64) to keep the PE resource section small and low-entropy, which is what the behavioural ML engines score; the method and the reproducible experiment matrix are in [**av-false-positive-case-study.md**](./av-false-positive-case-study.md). A clean multi-engine scan is not an audit, and a first-scan flag on a new hash can be reputation rather than content — per-release scan results, bound to each artifact's hash, are recorded in the [shipping inspection](./security-assessment.md).
 
 ---
 
@@ -367,7 +367,7 @@ Two **Tauri UI shells** lower the barrier for non-CLI users, and neither links a
 
 **Single, stable config location (SOT).** `xoksa.env` resolves to ONE canonical, user-scoped path — `<config_dir>/xoksa/xoksa.env` (Windows `%APPDATA%\xoksa`, macOS `~/Library/Application Support/xoksa`, Linux `~/.config/xoksa`) — shared by the CLI, `serve`, and the desktop, independent of the working directory, and shared by the settings app too. Resolution is simply `--env-file <path>` > the canonical path; there is **no** implicit `./xoksa.env` fallback, so the config cannot split by launch directory. On startup a **one-time, non-destructive migration** imports an existing config into the canonical location — first a pre-2.7.1 desktop config (`<data_dir>/app.xoksa.desktop/xoksa.env`), else a working-directory `./xoksa.env` — by copying it (never overwriting an existing canonical file), so upgrades keep their settings. The canonical directory is defined once in the shared `xoksa-paths` crate (depended on by the engine, the desktop, and the settings app, so it cannot drift); the engine resolves the file in one place (`utils::env_path`). `--private` (no-trace) semantics are preserved.
 
-**Signing.** macOS desktop and settings-app artifacts are Developer ID–signed and notarized. Windows artifacts currently ship unsigned; every artifact carries a published SHA-256 and a shipping-inspection record, so it is verifiable without a signature.
+**Signing.** macOS desktop and settings-app artifacts are Developer ID–signed and notarized. From 2.9.11 the Windows executables and the MSI are Authenticode-signed and timestamped. The desktop shell is signed after Tauri stamps its bundle type, because a signature applied before that stamp breaks inside the installer. Every artifact also carries a published SHA-256 and a shipping-inspection record.
 
 **Local auto-start never adopts a foreign engine.** When the desktop auto-starts a loopback engine, it asks the OS for an ephemeral port (bind `:0`, read, release) instead of a fixed one, so the child can never contend with a stale `xoksa serve` or any foreign process, and multiple app instances coexist — each with its own engine. Before the WebView attaches, the engine must answer `/api/health` as `xoksa-web` reporting **exactly this app's version** (the desktop and engine ship as a matched pair); the desktop connects only to the child it spawned. When LAN access is on (§4, fail-closed), the engine keeps the fixed, user-known port that remote devices rely on — that port is probed before spawning, and an occupied port is refused with the occupant named. Every auto-start failure is reported with its cause (spawn failure, immediate child exit with its status, port occupancy and by what, HTTP 401 distinguished from unreachable, timeout with the last observed state) — never a bare timeout. The ephemeral port is never persisted.
 
@@ -720,7 +720,7 @@ APIキーの保管方式としては、`--init` または `--update-key` を通�
 
 ## 5. 配布の完全性とアンチウイルス誤検知
 
-**CLI／サーババイナリ（`xoksa`）** は未署名のネイティブバイナリで、ループバックにHTTPサーバを立て、外向きHTTPS（LLM／市場／ニュース）を行い、APIキーのためにOS資格情報ストア（keyring）を読みます。この**正規の組合せ（ネットワーク＋資格情報アクセス）**こそ、挙動ベースのAV/MLが「怪しい」と採点する典型で、このバイナリが**古典的なマルウェアの痕跡を一切持たない**にもかかわらず、Defender／VirusTotal で**誤検知**が出る現実的リスクがあります。
+**CLI／サーババイナリ（`xoksa`）** はネイティブバイナリ（Windows は 2.9.11 から Authenticode 署名、macOS は Developer ID 署名＋公証）で、ループバックにHTTPサーバを立て、外向きHTTPS（LLM／市場／ニュース）を行い、APIキーのためにOS資格情報ストア（keyring）を読みます。この**正規の組合せ（ネットワーク＋資格情報アクセス）**こそ、挙動ベースのAV/MLが「怪しい」と採点する典型で、このバイナリが**古典的なマルウェアの痕跡を一切持たない**にもかかわらず、Defender／VirusTotal で**誤検知**が出る現実的リスクがあります。
 
 - プロセス起動・シェル実行なし（分析／CLI／サーバのバイナリで `std::process::Command` を使用していない）。
 - `unsafe` なし（`#![forbid(unsafe_code)]` でコンパイラ強制）、Win32/`winapi`/`LoadLibrary`/`VirtualAlloc`/`GetProcAddress` なし。
@@ -728,13 +728,13 @@ APIキーの保管方式としては、`--init` または `--update-key` を通�
 > **デスクトップアプリ（Tauri・§6）はプロファイルの異なる別バイナリです** — OS の WebView をホストし、`xoksa` エンジンを子プロセスとして起動します。その誤検知対策と署名方針は上記の箇条書きではなく §6 が扱います。
 
 **対策チェックリスト（リリース工程）:**
-1. **コード署名（Authenticode、可能ならEV）** — 業界的な決定打で、EV 証明書は SmartScreen 評価も即時に得られる。macOS の成果物は署名＋公証済み。Windows の成果物は現在未署名で出荷し、誤検知はビルド側で対処する（後述・§6）。
+1. **コード署名（Authenticode、可能ならEV）** — 業界的な決定打で、EV 証明書は SmartScreen 評価も即時に得られる。macOS の成果物は署名＋公証済み。2.9.11 から、Windows の成果物は Authenticode 署名とタイムスタンプ付き（Certum Open Source Code Signing）。後述のビルド側の対策は維持する。
 2. **配布・検査は release ビルドのみ。** `release` プロファイルを強化済み（`strip = true`・`lto = true`・`codegen-units = 1`）＝小型・シンボルなし。debugビルド（文字列・パス・panic文言・未最適化）は誤検知を踏みやすく、配布・スキャン対象にしてはならない。
 3. **再現ビルド＋SHA-256公開** で、成果物がソースと一致することをユーザーが検証可能に。
 4. 検知が出たら **Microsoftへ誤検知申請**（＋VirusTotal再スキャン）。署名とダウンロード実績で評価も蓄積する。
 5. keyring（資格情報ストア）アクセスは正規機能のため残す。ここでは既知の挙動シグナルとして記録（削除しない）。
 
-**AV 誤検知はビルドで対処する（署名ではなく）。** 出荷 desktop アイコンは非圧縮 BMP フレーム（最大 64×64）に制約し、PE リソースセクションを小さく低エントロピーに保つ——挙動 ML エンジンが採点するのはそこである。手法と再現可能な実験行列は [**av-false-positive-case-study.md**](./av-false-positive-case-study.md)。clean な多エンジンスキャンは監査ではなく、新規ハッシュへの初回スキャンの flag は中身ではなくレピュテーション由来でありうる——各現物のハッシュに束縛したリリースごとのスキャン結果は[出荷検査](./security-assessment.md)に記録する。
+**AV 誤検知はまずビルドで対処する（署名はその上に重ねるもので、代わりではない）。** 出荷 desktop アイコンは非圧縮 BMP フレーム（最大 64×64）に制約し、PE リソースセクションを小さく低エントロピーに保つ——挙動 ML エンジンが採点するのはそこである。手法と再現可能な実験行列は [**av-false-positive-case-study.md**](./av-false-positive-case-study.md)。clean な多エンジンスキャンは監査ではなく、新規ハッシュへの初回スキャンの flag は中身ではなくレピュテーション由来でありうる——各現物のハッシュに束縛したリリースごとのスキャン結果は[出荷検査](./security-assessment.md)に記録する。
 
 ---
 
@@ -752,7 +752,7 @@ APIキーの保管方式としては、`--init` または `--update-key` を通�
 
 **単一で安定した設定の場所（SOT）。** `xoksa.env` は**唯一の正準・ユーザースコープのパス**——`<config_dir>/xoksa/xoksa.env`（Windows `%APPDATA%\xoksa`／macOS `~/Library/Application Support/xoksa`／Linux `~/.config/xoksa`）——に解決し、作業ディレクトリに関係なく CLI・`serve`・デスクトップ・設定アプリで共有します。解決は `--env-file <path>` ＞ 正準パス のみ。**暗黙の `./xoksa.env` フォールバックは無く**、起動ディレクトリで設定が分裂しません。起動時に**一度きり・非破壊の移行**で既存設定を正準へインポートします——まず 2.7.1 以前のデスクトップ設定（`<data_dir>/app.xoksa.desktop/xoksa.env`）、無ければ作業ディレクトリの `./xoksa.env` を**コピー**（既存の正準ファイルは上書きしない）——ので更新時も設定が引き継がれます。正準ディレクトリは共有クレート `xoksa-paths` に1定義（engine・desktop・設定アプリが依存＝ドリフト不能）、ファイル解決はエンジンの1箇所（`utils::env_path`）。`--private`（no-trace）の意味は維持します。
 
-**署名。** macOS の desktop・設定アプリ配布物は Developer ID 署名＋公証済み。Windows の配布物は現在未署名で出荷し、各配布物に SHA-256 と出荷検査記録を添付する——署名なしで検証可能にするため。
+**署名。** macOS の desktop・設定アプリ配布物は Developer ID 署名＋公証済み。2.9.11 から、Windows の実行ファイルと MSI は Authenticode 署名とタイムスタンプ付き。デスクトップシェルは、Tauri がバンドル種別を刻んだあとに署名する（刻む前の署名はインストーラ内で壊れるため）。各配布物には、あわせて SHA-256 と出荷検査記録を添付する。
 
 **ローカル自動起動は自分以外のエンジンを掴まない。** デスクトップがループバックのエンジンを自動起動するときは、固定ポートではなく OS にエフェメラルポートを求める（`:0` に bind → 採番 → 解放）。よって子エンジンは居残りの `xoksa serve` や他プロセスと競合せず、アプリの多重起動もそれぞれ自分のエンジンを持って共存する。WebView を接続する前に、エンジンは `/api/health` で `xoksa-web` として**このアプリと完全一致する版数**を名乗らなければならない（デスクトップとエンジンは対で出荷される）。デスクトップは自分が spawn した子にしか接続しない。LAN アクセス有効時（§4 の fail-closed）は、リモート端末が番号を知る必要のある固定ポートを維持する——spawn 前にそのポートを検査し、占有されていれば占有者を名指しして拒否する。自動起動の失敗はすべて原因つきで報告する（起動失敗・子の即時終了と終了ステータス・ポート占有と占有者・HTTP 401 と到達不能の区別・最終観測状態つきタイムアウト）——素のタイムアウトにしない。エフェメラルポートは永続化しない。
 

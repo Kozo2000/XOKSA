@@ -16,7 +16,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [2.9.11] — unreleased
+## [2.9.11] — shipped 2026-10-17 (Windows)
 
 **The Windows release is signed.** Every executable on Windows and the installer that carries them now bear a code signature, and the release pipeline was split so that compiling and packaging stay on CI while signing happens where the key can be used.
 
@@ -122,7 +122,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [2.9.11] — 未リリース
+## [2.9.11] — 出荷済み（Windows 2026-10-17）
 
 **Windows の出荷物に署名した。** Windows のすべての実行ファイルと、それを収めるインストーラーにコード署名が付く。コンパイルと組み立ては CI に残し、署名は鍵を使える場所で行うよう、リリースの流れを 2 段に分けた。
 
