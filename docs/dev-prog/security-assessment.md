@@ -225,6 +225,8 @@ A shipping inspection binds to **one frozen local artifact by hash**: build once
 
 **From v2.9.9 the release build runs on CI, not on a developer machine.** `.github/workflows/release-windows.yml` performs steps 1–5 above on a `windows-latest` runner and, before uploading, runs `scripts/check-no-host-paths.sh` over every artifact. The reason is §C.4's v2.9.9 record: rustc bakes each crate's source path into the binary for its panic messages, so a developer-machine build ships the builder's account name, and neither `strip = true` nor `--remap-path-prefix` removes all of it. A local build is still fine for development; it is no longer what gets inspected or shipped.
 
+**From v2.9.11 the Windows release is signed between two CI runs.** `release-windows.yml` builds as above and places the three executables taken from inside its unshipped MSI in `to-sign/`. They are signed on the owner's machine (the key lives in Certum's cloud and cannot reach a runner) and attached to a hand-off draft release. `release-windows-package.yml` then packages the shipped MSI from them without compiling, and the MSI is signed last. The standalone `xoksa-desktop.exe` must not be signed: Tauri stamps three bytes into the copy it packs, which breaks a signature applied beforehand.
+
 **Start the inspected engine from a directory that contains no `webui-leptos/dist`.** `--web-dir` defaults to that **relative** path, and `read_asset` prefers an on-disk file over the binary's embedded copy — intended for development, but it means an engine launched from the repository root serves the working tree's frontend instead of its own. An inspection run that way is not bound to the artifact: this release's first ZAP scan had to be discarded because it scanned a stale local frontend while the engine under test was the CI one. Whatever the scan, confirm the binding by fetching `/` and checking the `xoksa-webui-<hash>` it references against the WASM in the artifact set.
 
 **Binding the inspection to its source.** A hash says *which file* was inspected; it does not say *which source produced it*. Two failures during the v2.6.8 release made the gap concrete: a release was published before its source was committed, so `gh release create --target main` tagged a commit that did not contain the code; and a dependency update merged mid-inspection, leaving the first build unreproducible from the merged source. Six rules close it, and every record from v2.7.0 onward follows them.
@@ -271,9 +273,10 @@ tree of `Kozo2000/xoksa-dev` at `9d05cc7` — **without its history** — and th
 here. Every record written before the migration (v2.9.10 and earlier) names commits and
 `release/*` branches that exist only in `Kozo2000/xoksa-dev`, which is kept as a **private archive rather than
 deleted** precisely so they stay reachable (§C.1, "Across a repository migration").
-A record's tag line is read the same way: `v2.9.10` names `9d05cc7` in the archive, and the tag
-of the same name here points at this repository's own initial commit, which carries the
-identical tree. Records written from the next release onward are bound to this repository.
+A record's tag line is read the same way: `v2.9.10` names `b3ef8e1` in the archive, and the tag
+of the same name here points at this repository's own initial commit `d61ab53`. Its program is
+identical to the archive's `9d05cc7`; the two differ only in documentation (four Markdown files)
+written for the migration. Records written from the next release onward are bound to this repository.
 
 
 ### v2.2.3 (shipped 2026-07-09)
@@ -1136,6 +1139,8 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 
 **v2.9.9 以降、リリースビルドは開発機ではなく CI で行う。** `.github/workflows/release-windows.yml` が上記 1〜5 を `windows-latest` ランナーで実行し、アップロード前に全現物へ `scripts/check-no-host-paths.sh` を掛ける。理由は §C.4 の v2.9.9 の記録にある——rustc は panic メッセージのために各クレートのソースパスをバイナリへ焼き込むため、開発機でのビルドはビルド者のアカウント名を出荷してしまい、`strip = true` でも `--remap-path-prefix` でも全部は消えない。開発目的のローカルビルドは従来どおりでよいが、検査と出荷の対象ではなくなった。
 
+**v2.9.11 以降、Windows のリリースは 2 回の CI の間で署名する。** `release-windows.yml` が上記のとおりビルドし、出荷しない MSI の中から取り出した実行ファイル 3 本を `to-sign/` に置く。これをオーナーの端末で署名し（鍵は Certum のクラウドにあり、ランナーからは届かない）、受け渡し専用の下書きリリースに置く。`release-windows-package.yml` がそれらからコンパイルせずに出荷用の MSI を組み、最後に MSI に署名する。単体の `xoksa-desktop.exe` には署名してはならない——Tauri は梱包するコピーに 3 バイトを刻むため、その前に付けた署名が壊れる。
+
 **検査するエンジンは、`webui-leptos/dist` が存在しないディレクトリから起動する。** `--web-dir` の既定はこの**相対パス**であり、`read_asset` はディスク上のファイルをバイナリの埋め込みより優先する——開発時の利便性のためだが、結果としてリポジトリ直下から起動したエンジンは自身の埋め込みではなく作業ツリーのフロントエンドを配信する。その状態での検査は現物に束縛されない：本リリースの最初の ZAP スキャンは、検査対象が CI 現物であるにもかかわらず古いローカルのフロントエンドを走査していたため破棄した。どのスキャンでも、`/` を取得して参照されている `xoksa-webui-<hash>` を現物の WASM と突き合わせ、束縛を確認すること。
 
 **検査をソースに束縛する。** ハッシュが示すのは*どのファイルを検査したか*であって、*どのソースから生まれたか*ではない。v2.6.8 のリリース作業で、この隙間が実際に 2 つの失敗として現れた。ソースをコミットする前にリリースを公開したため `gh release create --target main` が**コードを含まないコミット**にタグを打ったこと。そして検査の最中に依存の更新がマージされ、最初のビルドがマージ後のソースから再現できなくなったことである。以下の 6 項目でこれを塞ぐ。v2.7.0 以降の記録はすべてこれに従っている。
@@ -1183,9 +1188,10 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 `release/*` ブランチは `Kozo2000/xoksa-dev` にしか存在しない。`Kozo2000/xoksa-dev` を**削除せず非公開のアーカイブとして
 残している**のは、まさにそれらを到達可能に保つためである（§C.1「リポジトリの
 引っ越しをまたぐ場合」）。記録中のタグの記述も同じ読み方をする——`v2.9.10` は
-アーカイブの `9d05cc7` を指し、ここにある同名のタグは本リポジトリ自身の最初の
-コミット（ツリーは同一）を指す。次のリリース以降に書く記録は、本リポジトリに
-束縛される。
+アーカイブの `b3ef8e1` を指し、ここにある同名のタグは本リポジトリ自身の最初の
+コミット `d61ab53` を指す。そのプログラムはアーカイブの `9d05cc7` と同一で、違いは
+引っ越しのために書いた文書（Markdown 4 ファイル）だけである。次のリリース以降に書く
+記録は、本リポジトリに束縛される。
 
 
 ### v2.2.3（2026-07-09 出荷）

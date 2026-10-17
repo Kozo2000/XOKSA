@@ -20,7 +20,7 @@ The download page is the Releases page: **https://github.com/Kozo2000/XOKSA/rele
 
 **On Windows**
 1. On the download page (→ the Releases link), download the one Windows installer (the file ending in ".msi").
-2. Double-click that file to open the installer (shown in English). Proceed with "**Next**", and press "**Finish**" at the end (if "Launch XOKSA" is checked, XOKSA starts right away).
+2. Double-click that file to open the installer (shown in English). Proceed with "**Next**", and press "**Finish**" at the end (if "Launch XOKSA" is checked, XOKSA starts right away). If User Account Control asks for permission, check that a publisher is shown, then press "Yes".
 
 → The full XOKSA set is installed (three parts: the analysis engine, the desktop screen, and the settings app).
 
@@ -316,7 +316,7 @@ Adding an AI or swapping a key is also done in the AI item of the settings app. 
 When something doesn't work, look it up by symptom.
 
 **Stuck on install or launch (Windows)**
-If "Windows protected your PC" appears, press "More info" → "Run anyway."
+If "Windows protected your PC" appears, press "More info", check that a publisher is shown, and press "Run anyway."
 
 **Stuck on install or launch (Mac)**
 If macOS says the app "cannot be opened" or "is damaged", the download is incomplete or was modified: delete it, download the `.dmg` again, and compare its SHA-256 with the value on the download page (`shasum -a 256 <file>`). Do not bypass the message with `xattr -d com.apple.quarantine` — a genuine XOKSA build does not need it.
@@ -568,7 +568,7 @@ XOKSA は、株価のテクニカル分析・スコア・チャートを自動�
 
 **Windows の場合**
 1. ダウンロードページ（→ Releases のリンク）で、Windows 用のインストーラ（「.msi」で終わるファイル）を1つダウンロードします。
-2. そのファイルをダブルクリックすると、インストーラ（英語表示）が開きます。「**Next**」で進めていき、最後に「**Finish**」を押します（「Launch XOKSA」にチェックが入っていれば、そのまま XOKSA が起動します）。
+2. そのファイルをダブルクリックすると、インストーラ（英語表示）が開きます。「**Next**」で進めていき、最後に「**Finish**」を押します（「Launch XOKSA」にチェックが入っていれば、そのまま XOKSA が起動します）。ユーザーアカウント制御の確認が出たら、発行元の記載があることを確認して「はい」を押します。
 
 → XOKSA 一式（分析エンジン・デスクトップ画面・設定アプリの3つ）が入ります。
 
@@ -868,7 +868,7 @@ AI を増やす・キーを入れ替えるときも、設定アプリの AI 項�
 うまくいかないときは、症状から探してください。
 
 **インストール・起動でつまづく（Windows）**
-「WindowsによってPCが保護されました」と表示されたら、「詳細情報」→「実行」を押します。
+「WindowsによってPCが保護されました」と表示されたら、「詳細情報」を押し、発行元の記載があることを確認してから「実行」を押します。
 
 **インストール・起動でつまづく（Mac）**
 「開けません」「壊れています」と表示される場合は、ダウンロードが不完全か、ファイルが改変されています。いったん削除して `.dmg` をダウンロードし直し、ダウンロードページに載っている SHA-256 と照合してください（`shasum -a 256 <ファイル名>`）。`xattr -d com.apple.quarantine` で警告を回避しないでください——正規の XOKSA では不要です。

@@ -84,7 +84,7 @@ A release produces **two artifacts over one engine**; users pick by how they wan
 | **XOKSA (desktop)** | A **Tauri** connection shell that launches the *same* engine as a **child process** (`xoksa serve`) and shows its dashboard; the package also carries the standalone settings app (`xoksa-setup`) for configuration. | macOS `.app` / `.dmg`; Windows `.msi` (NSIS was measured and rejected — its container structure trips AV heuristics). Linux is buildable from source but **not shipped**. | beginners / non-terminal users |
 
 - **One engine, no fork.** The desktop app and the settings app are **separate workspaces** that link **no engine code** (no `xoksa` dependency); the desktop launches the `xoksa` engine binary as a child process (`xoksa serve`), and the settings app drives the engine's config subcommands (`xoksa apply-config` / `config-json` / …). No analysis logic is duplicated, and the CLI binary itself gains no Tauri/WebView dependency. Both artifacts yield identical results (SOT). See [design-philosophy.md](./design-philosophy.md) ("One Engine, Multiple Front-Ends") and [security-design.md §6](./security-design.md).
-- **Signing.** The macOS artifacts are **Developer ID–signed, notarized and stapled** (no Gatekeeper prompt on first run). **Windows currently ships unsigned** — see [security-design.md §6](./security-design.md).
+- **Signing.** The macOS artifacts are **Developer ID–signed, notarized and stapled** (no Gatekeeper prompt on first run). **From 2.9.11 the Windows artifacts are Authenticode-signed** — see [security-design.md §6](./security-design.md).
 - **Integrity.** Each artifact ships with its own SHA-256 checksum, and a CycloneDX SBOM is published **per target** — an SBOM lists what is inside *that* binary, and the platform crates differ (`schannel` / `windows-native-keyring-store` vs `security-framework` / `apple-native-keyring-store`), so `xoksa-native-windows-x86_64.cdx.json` and `xoksa-native-macos-arm64.cdx.json` are separate files, alongside the host-independent WASM UI SBOM (`xoksa-webui-leptos.cdx.json`).
 
 ## Module responsibilities
@@ -230,7 +230,7 @@ Branches off the same core: **chat** (`ChatSession::execute`, identical for CLI/
 | **XOKSA（デスクトップ）** | *同一*エンジンを**子プロセス**（`xoksa serve`）として起動し、そのダッシュボードを表示する **Tauri** 接続シェル。設定用に独立した設定アプリ（`xoksa-setup`）も同梱。 | macOS `.app`／`.dmg`、Windows `.msi`（NSIS は実測のうえ不採用＝コンテナ構造が AV ヒューリスティックに引っかかる）。Linux はソースからビルド可能だが**配布していない**。 | 初心者・非ターミナル |
 
 - **一つのエンジン・フォークなし。** デスクトップと設定アプリは**別 workspace** で、**エンジンのコードを一切リンクしない**（`xoksa` 依存なし）。デスクトップは `xoksa` エンジンバイナリを子プロセス（`xoksa serve`）として起動し、設定アプリがエンジンの設定サブコマンド（`xoksa apply-config`／`config-json`／…）を駆動する。分析ロジックの重複はなく、CLI 本体は Tauri/WebView 依存を持たない。両成果物は同一結果（SOT）。[design-philosophy.md](./design-philosophy.md)（単一エンジン・複数フロントエンド）・[security-design.md §6](./security-design.md) 参照。
-- **署名。** macOS の成果物は **Developer ID 署名＋公証＋staple 済み**（初回起動で Gatekeeper の警告が出ない）。**Windows は現在未署名で出荷**（[security-design.md §6](./security-design.md) 参照）。
+- **署名。** macOS の成果物は **Developer ID 署名＋公証＋staple 済み**（初回起動で Gatekeeper の警告が出ない）。**Windows は 2.9.11 から Authenticode 署名済み**（[security-design.md §6](./security-design.md) 参照）。
 - **完全性。** 各成果物に SHA-256 を添え、CycloneDX SBOM は**ターゲットごとに**公開する — SBOM は*そのバイナリ*に入っているものを列挙し、プラットフォーム crate は入れ替わるため（`schannel`・`windows-native-keyring-store` ↔ `security-framework`・`apple-native-keyring-store`）、`xoksa-native-windows-x86_64.cdx.json` と `xoksa-native-macos-arm64.cdx.json` は別ファイルとする。加えてホスト非依存の WASM UI SBOM（`xoksa-webui-leptos.cdx.json`）。
 
 ---
