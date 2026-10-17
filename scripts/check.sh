@@ -66,7 +66,9 @@ run "cargo test (xoksa-paths)" \
     cargo test --manifest-path xoksa-paths/Cargo.toml
 
 # 2) Supply-chain: advisories  (ci.yml job: audit)
-optional "cargo audit (native)" cargo-audit cargo audit
+# The three zip ignores: reasons in deny.toml (extract is never called).
+optional "cargo audit (native)" cargo-audit cargo audit \
+    --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369
 optional "cargo audit (webui-leptos / WASM frontend)" cargo-audit \
     cargo audit -f webui-leptos/Cargo.lock
 

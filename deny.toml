@@ -17,12 +17,22 @@ ignore = [
     # NOT shipped in the WASM, not vulnerabilities. See security-assessment.md.
     { id = "RUSTSEC-2024-0436", reason = "paste — unmaintained; build-time proc-macro via Leptos" },
     { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 — unmaintained; build-time proc-macro via Leptos" },
-    # Yanked, not vulnerable: every zip 8.x release was yanked from crates.io
-    # (found 2026-10-16) with no RustSec advisory, and calamine 0.36.1 — the
-    # latest, read by the spreadsheet import — requires zip ^8.6; no calamine
-    # release uses zip 9 yet. The existing lockfile keeps building. Remove this
-    # entry when calamine moves to zip 9.
-    { crate = "zip@8.6.0", reason = "all zip 8.x yanked without an advisory; calamine 0.36.1 requires ^8.6 (2026-10-16)" },
+    # Yanked: every zip 8.x release was yanked from crates.io (found 2026-10-16),
+    # and calamine 0.36.1 — the latest, read by the spreadsheet import — requires
+    # zip ^8.6; no calamine release uses zip 9 yet. The existing lockfile keeps
+    # building. Remove this entry when calamine moves to zip 9.
+    { crate = "zip@8.6.0", reason = "all zip 8.x yanked; calamine 0.36.1 requires ^8.6 (2026-10-16)" },
+    # The advisories behind that yank, found 2026-10-17. All three are in
+    # extracting an archive to the filesystem (`ZipArchive::extract`,
+    # `ZipStreamReader::extract`). XOKSA does not use zip directly, and calamine
+    # opens the workbook with `ZipArchive::new` and reads entries in memory — it
+    # never calls `extract` — so the flaws are not reachable in the shipped
+    # engine. The fix is zip >= 9.0.0, which calamine does not accept yet.
+    # Remove these three with the yanked entry above. The same three are ignored
+    # for `cargo audit` in ci.yml, audit.yml and scripts/check.sh.
+    { id = "RUSTSEC-2026-0367", reason = "zip extract keeps SUID/SGID; extract is never called (calamine reads in memory)" },
+    { id = "RUSTSEC-2026-0368", reason = "zip extract symlink escape; extract is never called (calamine reads in memory)" },
+    { id = "RUSTSEC-2026-0369", reason = "zip extract permissions through symlinks; extract is never called (calamine reads in memory)" },
 ]
 
 [licenses]
