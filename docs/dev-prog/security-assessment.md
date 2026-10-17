@@ -193,7 +193,7 @@ A static review of `src/` against the 2023 list, first made 2026-09-29 and **re-
 | API9 | Improper Inventory Management | **PARTIAL** | `/api/health` reports the service name and version and the desktop requires an exact match. There is no version in the path and no machine-readable spec — by design (§0.2) for a pair shipped together. |
 | API10 | Unsafe Consumption of APIs | **PARTIAL** (was: none) | Every external client has a timeout, and the §1 output-integrity guard goes beyond what this item asks of an LLM response. Redirects are now bounded (API7). Response size is capped **on the Ollama path only** — plaintext HTTP to a user-configured host — because that is where a reply can come from something other than the intended server; the TLS paths to hosts fixed in code are deliberately untouched. |
 
-**What this mapping does not cover.** It is a source review, not a dynamic test — the dynamic evidence per release is in Part C. Two of the three open questions this review listed are now answered: `reqwest` does **not** strip `x-api-key` across a cross-host redirect (measured against the crate's `remove_sensitive_headers`, which is why API7's fix also closed a key-leak path), and ZAP has been run against the shipped artifacts of every release since — most recently v2.9.10 (Windows), 8 alerts and 0 High, with each alert's basis measured on that artifact (C.4). The third stands: API3 was confirmed on `/api/config` and the key-presence path, not by sweeping every handler's response fields.
+**What this mapping does not cover.** It is a source review, not a dynamic test — the dynamic evidence per release is in Part C. Two of the three open questions this review listed are now answered: `reqwest` does **not** strip `x-api-key` across a cross-host redirect (measured against the crate's `remove_sensitive_headers`, which is why API7's fix also closed a key-leak path), and ZAP has been run against the shipped artifacts of every release since — most recently v2.9.11 (Windows), 8 alerts and 0 High, with each alert's basis measured on that artifact (C.4). The third stands: API3 was confirmed on `/api/config` and the key-presence path, not by sweeping every handler's response fields.
 
 ---
 
@@ -327,6 +327,45 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 **§4.2 duplication — resolved (behaviour-preserving throughout).** Consolidated to one source: #1 the adjusted-score line (10 copies → 1 `adjusted_score_line`), #3 `send_cloud_prompt` (3 provider senders → 1), #5 `key_present_in_env_file` → `read_key_from_env_file`, #6 the score-unavailable labels unified on "情報なし/unavailable" (utils the single source), #7 `colored_price_diff`, #8 `cloud_provider_rows`, #10 `send_chat_turn_dispatch`, #2 `group_thousands` (each caller keeps its own f64→int conversion — display-only), #4 `parse_env_line` (+ `live_ollama_instances` now uses `load_env_map`; each caller keeps its own Class-A filter, so a Class A value is never materialized), #9 `sanitize_symbol_result` (returns the error so the four reporting sites keep their message), #11 the operator symbol via `rule_operator_catalog`, #12 `fundamental_value_lines` (the revenue→next-FY value block; the display vs LLM header blocks are distinct views and stay per-function), #13 `cross_status`/`CrossLabels`, #14 `deviation_line`, #15 `symbol_of` reuse, #16 `ChatTokenUsage::accumulate`, #17 `on_off`, #18 the context.rs percent-change via `displayed_price_diff`. **Verified NOT a real duplicate implementation, left as-is:** #19 — `fmt_num` and `fmt_currency_auto` produce different output (no-symbol 4-dp vs symbol+commas 2-dp); their only shared token is the `100.0` threshold, which also drives the §1 output-integrity guard, so unifying it would false-couple display precision with a security threshold. Distinct sub-parts were likewise left (not duplicates): the `parse_alert_condition` operator ordering and the eval semantics in #11; the raw-bar (indicators.rs) and reload-delta (chat) percent computations in #18.
 
 **Binary-bound items pending (recorded at ship-time, per this C.4 convention):** per-artifact SHA-256, VirusTotal on the shipped hashes (deferred until code signing, as for v2.7.0), the OWASP ZAP passive scan, and the per-OS SBOM regeneration are measured at the tag/CI ship step against the frozen binary. This record is the source-level evidence at working-tree state and does not substitute for the on-artifact measurement.
+
+### v2.9.11 (Windows) — inspected 2026-10-16 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, ZAP, SCA, SBOM, VirusTotal); **published 2026-10-17 14:55 JST** (tag `v2.9.11` at `ef3faeb`)
+
+The first record bound to this repository, `Kozo2000/XOKSA`: every commit named below lives here. It is also the first Windows release that is signed.
+
+**Build provenance — GitHub Actions `Release build (Windows)` run `38878871362`, source commit `ef3faeb` on `main`** (the squash merge of #13), `rustc 1.98.1`, read out of all three executables. The executables were then signed on the owner's machine and the shipped installer was packaged from them without compiling by `Package signed installer (Windows)` run `38887039339`; the MSI was signed last (§C.1). That run checked out `c099c26` (#14, a change to that workflow alone), which compiles nothing: the program in every artifact is `ef3faeb`'s.
+
+**Signing.** Certum Open Source Code Signing (cloud), serial `30e49e39125ad5e47056f4f08b867ef5`, thumbprint `fe46d4e648938217c4255920b6cdf519a3836fe6`, valid 2026-10-15 18:49 to 2027-10-15 18:49 JST. The MSI and the three executables each verify as `Valid` with a timestamp — measured during the inspection and again on 2026-10-17 before publication.
+
+**Frozen Windows artifacts** (signed):
+
+| Artifact | SHA-256 | Size |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.11-x64.msi` (installer, carries the three binaries below) | `ca05b4ce556204ae30a6a2a89efec09b9a31a2ccc710d45c89bb0c39eeff54e4` | 11,759,616 B |
+| `xoksa.exe` (engine) | `3e7942a2e583ef559f0c7a164d0dc33b36c697c9b89a9767c26268039392738d` | 14,870,640 B |
+| `xoksa-desktop.exe` (connection shell) | `f0f40d307ea6eeaf507e36c1c923283e47192603af21bee99bb2549aaac31ba4` | 9,640,048 B |
+| `xoksa-setup.exe` (settings app) | `8142e3221d012f7807f130aea824fe5d3837385afade87af8e8880ba5a468a2b` | 8,425,072 B |
+| `xoksa-webui-a8866c04cbf7c7b9_bg.wasm` (frontend embedded in the engine) | `f3d6faddc54121bddfd46b9869c1413f26312a19e885ec72121d7cc6385be85c` | 724,574 B |
+| `xoksa-manuals-2.9.11.zip` (manuals, built from `d4f8eb8` on `v2.9.11-fetch-signed`) | `3a3bcf5cdc4ac65ebeb59d364070b586a188319d6d76fb9de5de322853c2e895` | 19,008,205 B |
+
+**Results measured on 2026-10-16** (as recorded in the handover note): provenance, hashes against the CI record, signing, payload identity (with the signatures removed the executables match CI's, and the MSI's contents match the signed executables), build-path gate, AV recipe (`.rsrc` / `.rdata` at v2.9.10's figures), **static** — fifteen gates green, 491 tests; **SOT** — across the three paths 50 of 51 columns agree, the remaining one being the run time, one second apart; frontend binding; **runtime** 9/9; **penetration** — the admission cap answers `200` with 255 requests held and `503` at 256; the decoy `xoksa.env` is ignored; **SCA** — 0 vulnerabilities in the shipped artifacts; the two findings carried forward (unused `native-tls`, the settings app outside the static gate set) re-checked and unchanged.
+
+**Frontend binding, re-measured on 2026-10-17.** Started from `signed\`, which holds no `webui-leptos/dist`, the engine's `/` references `xoksa-webui-a8866c04cbf7c7b9`, and the served `.wasm` hashes to `f3d6fadd…`, the artifact's own.
+
+**OWASP ZAP passive scan — 2026-10-17, over the LAN against the signed engine bound to `0.0.0.0:8787` — 8 alert types, 0 High**, the same eight as v2.9.8 to v2.9.10: Anti-CSRF token missing on `GET /login` (Medium, 1), SRI attribute missing on the `xoksa-webui-a8866c04…` asset (1), Unix timestamp disclosure on `/api/symbol/NVDA/summary` (4), cookie poisoning on `POST /auth` (1), session-management response (3), modern web application (1), localStorage (5), suspicious comments (1). The HTML the engine serves carries `integrity` on all three subresources, so the SRI alert is again an HTML rule applied to a binary URL. The timestamp instance inspected is `analyzed_at_timestamp` (`1792214849`, the run time); all four are on the summary response, whose timestamps are market and analysis times (Class C). The localStorage instance inspected is `xoksa.tickers`; ZAP raises this alert once per URL and key, so its count follows which keys the browsing session wrote, which is why it moved from 6 to 5.
+
+**SCA notes.** `xxhash-rust` carries a low-severity advisory; it is a build-time dependency and is not in the shipped artifacts.
+
+**SBOM — four inventories regenerated** from throwaway `cargo auditable` builds of the same source (derived, not extracted — CI does not build with `auditable`): `xoksa-native-windows-x86_64` **225** library components, `xoksa-desktop-windows-x86_64` **196**, `xoksa-setup-windows-x86_64` **212**, `xoksa-webui-leptos` **188**, all CycloneDX 1.5 and free of absolute paths. Against the v2.9.10 inventories the engine moves `clap` 4.6.1 → 4.6.7 (`clap_builder` 4.6.0 → 4.6.7), the `futures` family 0.3.32 → 0.3.34, `rustls` 0.23.45 → 0.23.46 and `serde_json` 1.0.150 → 1.0.154; the other three change only this project's own version. The v2.9.10 WASM inventory named the file it read as `/private/tmp/sbom2910/xoksa-webui/Cargo.lock`, a macOS temporary path; the regenerated one does not. The macOS engine inventory is left for the macOS build.
+
+**VirusTotal** (on the signed artifacts): the MSI **0/62**, `xoksa.exe` **0/71**, `xoksa-desktop.exe` **0/71**, `xoksa-setup.exe` **0/55**.
+
+**What a first-time user sees — measured on 2026-10-17 on the owner's everyday PC** (XOKSA uninstalled beforehand, its configuration kept), with the published MSI downloaded through a browser. SmartScreen still blocks full-screen; **More info** now shows the certificate's subject as the publisher, where v2.9.10 showed an unknown publisher. User Account Control did not appear, and the installation succeeded. This is a different environment from v2.9.10's clean Windows 10 VM, so the absence of the UAC prompt is recorded as observed, not attributed to signing. The SmartScreen block is reputation, which accrues on the certificate rather than being granted at once; the MSI was submitted to Microsoft Security Intelligence as incorrectly detected on 2026-10-17.
+
+**Operational note.** A `serve` started without `--private` writes its diagnostic log to `logs\` under the directory it was started from, so an inspection run from `signed\` leaves a `logs\` folder beside the artifacts.
+
+**Not measured:** MSI uninstall, and a runtime prompt injection (H1), for the reasons given at v2.9.10.
+
+**Published 2026-10-17 14:55 JST** (tag `v2.9.11` at `ef3faeb`).
 
 ### v2.9.10 (macOS) — inspected 2026-10-02 on the CI-built artifacts, signed and notarized — PASS (static, SOT, runtime, penetration, payload identity, SCA, SBOM, signing/notarization, VirusTotal, ZAP); **published 2026-10-03 07:09 JST** (tag `v2.9.10` at `b3ef8e1`)
 
@@ -1107,7 +1146,7 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 | API9 | Improper Inventory Management | **部分的** | `/api/health` が名前と版を返し、デスクトップは完全一致を要求する。パスにバージョンは無く、機械可読の仕様も無い——対で出荷する以上、設計上（§0.2）。 |
 | API10 | Unsafe Consumption of APIs | **部分的**（従来：未対応） | 全外部クライアントにタイムアウトがあり、§1 の出力整合性ガードは本項目が LLM 応答に求める水準を超えている。リダイレクトは制限済み（API7）。応答サイズの上限は **Ollama 経路のみ**——平文 HTTP で接続先が利用者設定であり、意図した相手以外から応答が来得る唯一の経路だからで、ホストがコード固定の TLS 経路は意図的に触っていない。 |
 
-**この判定が覆っていないもの。** これはソースレビューであって動的試験ではない（リリースごとの動的証跡は Part C）。本レビューが挙げた未確認 3 件のうち 2 件は解消した：`reqwest` はクロスホストのリダイレクトで **`x-api-key` を除去しない**（crate の `remove_sensitive_headers` に対する実測。API7 の修正が鍵の漏出経路も同時に塞いだ理由がこれである）、ZAP はそれ以降の各リリースの出荷現物に対して実施しており、直近は v2.9.10（Windows）の 8 アラート・High 0 で、各アラートの根拠をその現物で実測している（C.4）。残る 1 件は未了：API3 は `/api/config` と鍵の存在確認で確かめたのであって、全ハンドラの応答項目を網羅したわけではない。
+**この判定が覆っていないもの。** これはソースレビューであって動的試験ではない（リリースごとの動的証跡は Part C）。本レビューが挙げた未確認 3 件のうち 2 件は解消した：`reqwest` はクロスホストのリダイレクトで **`x-api-key` を除去しない**（crate の `remove_sensitive_headers` に対する実測。API7 の修正が鍵の漏出経路も同時に塞いだ理由がこれである）、ZAP はそれ以降の各リリースの出荷現物に対して実施しており、直近は v2.9.11（Windows）の 8 アラート・High 0 で、各アラートの根拠をその現物で実測している（C.4）。残る 1 件は未了：API3 は `/api/config` と鍵の存在確認で確かめたのであって、全ハンドラの応答項目を網羅したわけではない。
 
 ---
 
@@ -1240,6 +1279,45 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 **§4.2 の重複——解消（全て挙動保存）。** 単一ソース化：#1 スコア調整行（10コピー→1 `adjusted_score_line`）／#3 `send_cloud_prompt`（3送信→1）／#5 `key_present_in_env_file`→`read_key_from_env_file`／#6 スコア不明ラベルを「情報なし/unavailable」に統一（utils を単一源）／#7 `colored_price_diff`／#8 `cloud_provider_rows`／#10 `send_chat_turn_dispatch`／#2 `group_thousands`（f64→整数変換は各呼出側が保持・表示専用）／#4 `parse_env_line`（＋`live_ollama_instances` は `load_env_map` を利用。除外条件は各自保持でクラスA値を材料化しない）／#9 `sanitize_symbol_result`（エラーを返し4つの報告サイトの文言を保持）／#11 演算子記号を `rule_operator_catalog` から／#12 `fundamental_value_lines`（revenue〜次期FYの値行。表示/LLMのヘッダは別ビューで各関数に残置）／#13 `cross_status`/`CrossLabels`／#14 `deviation_line`／#15 `symbol_of` 再利用／#16 `ChatTokenUsage::accumulate`／#17 `on_off`／#18 context.rs の前足比を `displayed_price_diff` 経由に。**真の重複でないと確認し据え置き：** #19——`fmt_num` と `fmt_currency_auto` は出力が異なる（記号なし4桁 vs 記号+カンマ2桁）。共有は `100.0` 閾値のみで、これは §1 の出力整合ガードも使うため、統合すると表示精度とセキュリティ閾値を誤って結合してしまう。別概念の下位部分も据え置き（非重複）：#11 の `parse_alert_condition` の演算子解析順・eval のセマンティクス、#18 の生バー(indicators.rs)・リロード差分(chat)の前足比計算。
 
 **現物依存項目は保留（出荷時に本節へ記録・C.4 の慣例通り）：** 現物別 SHA-256・出荷ハッシュへの VirusTotal（v2.7.0 同様、コード署名まで延期）・OWASP ZAP パッシブスキャン・OS別 SBOM 再生成は、tag→CI が凍結した現物に対して実測する。本記録は作業ツリー時点のソース級証跡であり、現物実測の代替ではない。
+
+### v2.9.11（Windows）— CI ビルド現物を 2026-10-16 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／ZAP／SCA／SBOM／VirusTotal）。**2026-10-17 14:55 JST 公開**（タグ `v2.9.11` は `ef3faeb`）
+
+本リポジトリ `Kozo2000/XOKSA` に束縛された最初の記録であり、以下で名指すコミットはすべてここにある。署名した最初の Windows リリースでもある。
+
+**ビルドの出所 — GitHub Actions `Release build (Windows)` run `38878871362`、ソースコミット `ef3faeb`（`main`、#13 の squash マージ）**、`rustc 1.98.1`（実行ファイル 3 本から読み出した値）。その後、実行ファイルをオーナーの端末で署名し、`Package signed installer (Windows)` run `38887039339` がそれらからコンパイルせずに出荷用のインストーラを組み、最後に MSI に署名した（§C.1）。この run は `c099c26`（#14。このワークフロー自体の変更だけ）をチェックアウトしているが、何もコンパイルしない——全現物のプログラムは `ef3faeb` のものである。
+
+**署名。** Certum Open Source Code Signing（クラウド版）、シリアル `30e49e39125ad5e47056f4f08b867ef5`、拇印 `fe46d4e648938217c4255920b6cdf519a3836fe6`、有効期間 2026-10-15 18:49 〜 2027-10-15 18:49 JST。MSI と実行ファイル 3 本は、いずれもタイムスタンプ付きで `Valid` と検証される——検査時に実測し、2026-10-17 の公開前にも再確認した。
+
+**凍結した Windows 現物**（署名済み）：
+
+| 現物 | SHA-256 | サイズ |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.11-x64.msi`（インストーラ。下の 3 本を内包） | `ca05b4ce556204ae30a6a2a89efec09b9a31a2ccc710d45c89bb0c39eeff54e4` | 11,759,616 B |
+| `xoksa.exe`（エンジン） | `3e7942a2e583ef559f0c7a164d0dc33b36c697c9b89a9767c26268039392738d` | 14,870,640 B |
+| `xoksa-desktop.exe`（接続シェル） | `f0f40d307ea6eeaf507e36c1c923283e47192603af21bee99bb2549aaac31ba4` | 9,640,048 B |
+| `xoksa-setup.exe`（設定アプリ） | `8142e3221d012f7807f130aea824fe5d3837385afade87af8e8880ba5a468a2b` | 8,425,072 B |
+| `xoksa-webui-a8866c04cbf7c7b9_bg.wasm`（エンジンが内蔵するフロントエンド） | `f3d6faddc54121bddfd46b9869c1413f26312a19e885ec72121d7cc6385be85c` | 724,574 B |
+| `xoksa-manuals-2.9.11.zip`（マニュアル。`v2.9.11-fetch-signed` の `d4f8eb8` から作成） | `3a3bcf5cdc4ac65ebeb59d364070b586a188319d6d76fb9de5de322853c2e895` | 19,008,205 B |
+
+**2026-10-16 に実測した結果**（引継ぎ書の記載による）：出所、CI の記録とのハッシュ照合、署名、ペイロード同一性（署名を外すと実行ファイルは CI のものと一致し、MSI の中身は署名済みの実行ファイルと一致）、ビルドパスのゲート、AV 対策（`.rsrc`／`.rdata` は v2.9.10 と同等）、**静的**——15 ゲート緑・試験 491 件、**SOT**——3 経路で 51 列中 50 が一致し、残る 1 つは実行時刻の 1 秒差、画面の束縛、**ランタイム** 9/9、**ペネトレ**——接続受入の上限は保留 255 本で `200`、256 本で `503`、おとりの `xoksa.env` は読まない、**SCA**——出荷物の脆弱性 0、持ち越しの所見 2 件（未使用の `native-tls`、静的ゲート集合の外にある設定アプリ）は再確認して不変。
+
+**画面の束縛を 2026-10-17 に再実測。** `webui-leptos/dist` を持たない `signed\` から起動したエンジンの `/` は `xoksa-webui-a8866c04cbf7c7b9` を参照し、配信された `.wasm` のハッシュは `f3d6fadd…` で、現物自身のものと一致する。
+
+**OWASP ZAP パッシブスキャン — 2026-10-17、`0.0.0.0:8787` に bind した署名済みエンジンに対し LAN 経由 — 8 種・High 0。** 種類は v2.9.8〜v2.9.10 と同じ 8 つである：`GET /login` の Anti-CSRF トークン欠如（Medium・1）、`xoksa-webui-a8866c04…` 資産の SRI 属性欠如（1）、`/api/symbol/NVDA/summary` の Unix タイムスタンプ露見（4）、`POST /auth` の Cookie ポイズニング（1）、セッション管理レスポンス（3）、モダン Web アプリケーション（1）、localStorage（5）、疑わしいコメント（1）。エンジンが配信する HTML は 3 つのサブリソースすべてに `integrity` を持つので、SRI のアラートは今回も、HTML 用のルールをバイナリの URL に当てたものである。確認したタイムスタンプの 1 件は `analyzed_at_timestamp`（`1792214849`、実行時刻）で、4 件とも summary の応答にあり、その時刻は市場と分析の時刻（クラス C）である。確認した localStorage の 1 件は `xoksa.tickers` である。ZAP はこのアラートを URL とキーの組ごとに 1 回だけ出すので、件数は閲覧中にどのキーが書かれたかで決まる——6 から 5 に動いたのはこのためである。
+
+**SCA の補足。** `xxhash-rust` に低深刻度の勧告がある。ビルド時だけの依存で、出荷物には入っていない。
+
+**SBOM — 4 本を再生成した。** 同一ソースの使い捨て `cargo auditable` ビルドから作った（抽出ではなく導出——CI は `auditable` でビルドしていない）：`xoksa-native-windows-x86_64` は library **225** 件、`xoksa-desktop-windows-x86_64` **196**、`xoksa-setup-windows-x86_64` **212**、`xoksa-webui-leptos` **188**。いずれも CycloneDX 1.5 で、絶対パスを含まない。v2.9.10 のインベントリと比べて、エンジンは `clap` 4.6.1 → 4.6.7（`clap_builder` 4.6.0 → 4.6.7）、`futures` 系 0.3.32 → 0.3.34、`rustls` 0.23.45 → 0.23.46、`serde_json` 1.0.150 → 1.0.154 が動いた。残る 3 本は本プロジェクト自身の版数だけが変わった。v2.9.10 の WASM のインベントリは、読み取ったファイルを `/private/tmp/sbom2910/xoksa-webui/Cargo.lock`（macOS の一時パス）と記していたが、再生成したものには無い。macOS エンジンのインベントリは macOS のビルドに委ねる。
+
+**VirusTotal**（署名済みの現物）：MSI **0/62**、`xoksa.exe` **0/71**、`xoksa-desktop.exe` **0/71**、`xoksa-setup.exe` **0/55**。
+
+**初回利用者が見る画面 — 2026-10-17、オーナーの普段使いの PC で実測**（XOKSA は事前にアンインストールし、設定は保持）。公開した MSI をブラウザでダウンロードした。SmartScreen は今も全画面で遮断する。「詳細情報」には発行元として証明書の主体名が表示される（v2.9.10 では不明な発行元だった）。ユーザーアカウント制御は出ず、インストールは成功した。v2.9.10 のクリーンな Windows 10 VM とは環境が違うため、ユーザーアカウント制御が出なかったことは観測どおりに記録し、署名によるものとはしない。SmartScreen の遮断はレピュテーションによるもので、即時に付与されるのではなく証明書に積み上がる。この MSI は 2026-10-17 に、誤検知として Microsoft Security Intelligence に提出した。
+
+**運用上の注記。** `--private` を付けずに起動した `serve` は、起動したフォルダの下の `logs\` に診断ログを書く。したがって `signed\` から検査すると、現物の隣に `logs\` フォルダが残る。
+
+**未実測：** MSI のアンインストールと、ランタイムのプロンプトインジェクション（H1）。理由は v2.9.10 と同じである。
+
+**2026-10-17 14:55 JST 公開**（タグ `v2.9.11` は `ef3faeb`）。
 
 ### v2.9.10（macOS）— CI ビルド現物を 2026-10-02 検査・署名・公証 — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／SCA／SBOM／署名・公証／VirusTotal／ZAP）。**2026-10-03 07:09 JST 公開**（タグ `v2.9.10` は `b3ef8e1`）
 
