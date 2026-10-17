@@ -62,11 +62,10 @@ jobs:
 
       # `pipefail` matters here: without it `cargo audit | tee` reports tee's
       # exit status, so a real finding would pass the step silently.
-      # The three zip ignores: reasons in deny.toml (extract is never called).
       - name: cargo audit (native)
         run: |
           set -o pipefail
-          cargo audit --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369 2>&1 | tee audit-native.txt
+          cargo audit 2>&1 | tee audit-native.txt
 
       # The WASM frontend is its own workspace with a separate Cargo.lock, so the
       # native scan above does not cover it. Its crates run in the user's browser.

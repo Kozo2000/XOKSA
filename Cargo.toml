@@ -1,6 +1,6 @@
 [package]
 name = "xoksa"
-version = "2.9.11"
+version = "2.9.12"
 edition = "2021"
 authors = ["XOKSA <info@xoksa.jp>"]
 description = "Stock analysis and news title triage tool using LLMs"
@@ -109,6 +109,16 @@ apple-native-keyring-store = { version = "1", features = ["keychain"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 linux-keyutils-keyring-store = "1"
+
+# calamine 0.36.1 requires zip ^8.6, and zip 8.6.0 carries RUSTSEC-2026-0367,
+# -0368 and -0369 (fixed in zip >= 9.0.0). No calamine release accepts zip 9
+# yet, so the engine takes calamine from tafia/calamine PR #741 ("chore(deps):
+# upgrade zip to 9.0"), pinned to the full commit reviewed for v2.9.12. The
+# review is recorded in that version's shipping inspection. Remove this section
+# — and the matching `allow-git` entry in deny.toml — once a calamine release
+# on crates.io accepts zip 9 and passes the same checks.
+[patch.crates-io]
+calamine = { git = "https://github.com/tafia/calamine", rev = "d2ddf8837d301011011439708c8395310cee3906" }
 
 
 

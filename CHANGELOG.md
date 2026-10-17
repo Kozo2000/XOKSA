@@ -16,6 +16,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
+## [2.9.12] — unreleased
+
+In the final stage of the v2.9.11 shipping inspection — the CI of the pull request that brings the record into `main` — three advisories were found against `zip` 8.6.0, which the engine carries for reading Excel files through `calamine`. RustSec rates one Critical, one High, and publishes no score for the third:
+
+- RUSTSEC-2026-0367 (GHSA-vv5m-jxxh-4627): SUID/SGID bits are preserved on extraction. CVSS 7.3 High (`CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H`).
+- RUSTSEC-2026-0368 (GHSA-4v9h-p7m9-rh26): `ZipArchive::extract` creates symbolic links whose targets lie outside the destination directory. No CVSS score is published (the GitHub advisory rates it high).
+- RUSTSEC-2026-0369 (GHSA-4684-h2q9-2vcp): `extract` applies permissions through symbolic links. CVSS 9.1 Critical (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H`).
+
+All three are in extracting an archive to the filesystem (`extract`), which XOKSA does not use. Even so, a component with Critical- and High-severity flaws is not left in a shipped artifact: it is replaced with the fixed `zip` 9 (9.0.4). That requires a rebuild, so the version moves to v2.9.12, and signing and the shipping inspection are done again.
+
+### Security
+- **`zip` 9.0.4 in place of 8.6.0.** No `calamine` release accepts `zip` 9 yet, so the engine takes `calamine` from tafia/calamine pull request #741 ("chore(deps): upgrade zip to 9.0"), pinned to the full commit `d2ddf8837d301011011439708c8395310cee3906` through `[patch.crates-io]`. The commit was reviewed before it was taken: the eleven commits since 0.36.1, the `quick-xml` 0.42 it brings, and the advisories of all three crates. The review is recorded in the v2.9.12 shipping inspection. When a `calamine` release on crates.io accepts `zip` 9 and passes the same checks, the pin is removed. ([Cargo.toml](Cargo.toml), [deny.toml](deny.toml))
+- **The exceptions are removed.** The three `zip` advisories and the yanked `zip` 8.6.0 are no longer excepted in `deny.toml`, `ci.yml`, `audit.yml` or `scripts/check.sh`; `cargo audit` and `cargo deny` pass without them. The one git source, `calamine`, is allowed by name in `deny.toml`. ([deny.toml](deny.toml), [.github/workflows/ci.yml](.github/workflows/ci.yml), [.github/workflows/audit.yml](.github/workflows/audit.yml), [scripts/check.sh](scripts/check.sh))
+
+### Changed
+- **Release builds are `--locked`.** The four compile steps of the Windows release (`trunk build`, the engine, the settings app, `cargo tauri build`) refuse to build if a lockfile would change. ([.github/workflows/release-windows.yml](.github/workflows/release-windows.yml))
+- **Versions aligned to 2.9.12** across the engine, desktop app, settings app and web UI, including each sub-crate's `Cargo.lock`; MSI name `XOKSA-2.9.12-x64.msi`.
+
+---
+
 ## [2.9.11] — shipped 2026-10-17 (Windows)
 
 **The Windows release is signed.** Every executable on Windows and the installer that carries them now bear a code signature, and the release pipeline was split so that compiling and packaging stay on CI while signing happens where the key can be used.
@@ -119,6 +139,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Two paths run **without** confirmed data: free-form conversation with no instrument loaded, and news triage (the model sorts the titles it was given, so its numbers must come from those titles rather than from the market data). On both the guard falls back to the older presence test — the number must occur in the input it was given — and does not claim attribution was verified. Everywhere else the confirmed data travels with the request, the Ollama benchmark included.
 - A bare uppercase symbol (`MSFT`) is read as naming an instrument only in a session whose own instruments are written that way, only from two characters up, and only when it is neither part of the guard's vocabulary nor an enumerated ordinary word or acronym (`I`, `IT`, `AI`, `CEO` …). A bare foreign US symbol quoted inside a Japanese-listing session is therefore not flagged as foreign; its number is still verified against the confirmed values.
 - When the provider reports no currency (the labelled Stooq fallback), a written currency is not refused — an unknown cannot contradict it. The value itself is still verified.
+
+---
+
+## [2.9.12] — 未リリース
+
+v2.9.11 の出荷検査の最終段（記録を main に取り込むプルリクエストの CI）で、エンジンが Excel の読み込み（`calamine` 経由）のために含む `zip` 8.6.0 に、勧告 3 件が見つかった。RustSec の評価では、Critical が 1 件、High が 1 件、点数の公表が無いものが 1 件である。
+
+- RUSTSEC-2026-0367（GHSA-vv5m-jxxh-4627）：展開時に SUID/SGID ビットを保持する。CVSS 7.3 High（`CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H`）
+- RUSTSEC-2026-0368（GHSA-4v9h-p7m9-rh26）：`ZipArchive::extract` が展開先の外を指すシンボリックリンクを作る。CVSS の点数は公開されていない（GitHub の勧告の深刻度は high）
+- RUSTSEC-2026-0369（GHSA-4684-h2q9-2vcp）：`extract` がシンボリックリンク越しに権限を適用する。CVSS 9.1 Critical（`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H`）
+
+3 件とも、ZIP をファイルシステムへ展開する機能（`extract`）の欠陥で、XOKSA はこの機能を使っていない。それでも、深刻度 Critical・High の欠陥を含む部品を出荷物に残さないため、修正版の `zip` 9（9.0.4）に替える。これには再ビルドが必要となるため、版を v2.9.12 に上げ、再署名と出荷検査をやり直す。
+
+### セキュリティ
+- **`zip` を 8.6.0 から 9.0.4 に。** `zip` 9 を受け入れる `calamine` の正式版はまだ無いため、エンジンは tafia/calamine のプルリクエスト #741（「chore(deps): upgrade zip to 9.0」）の `calamine` を、`[patch.crates-io]` で完全なコミット `d2ddf8837d301011011439708c8395310cee3906` に固定して使う。採る前に審査した——0.36.1 以降の 11 コミット、それに伴う `quick-xml` 0.42、3 つの部品すべての勧告。審査の記録は v2.9.12 の出荷検査に置く。`zip` 9 を受け入れる `calamine` の正式版が crates.io に出て、同じ検査を通ったら、固定を外す。([Cargo.toml](Cargo.toml)、[deny.toml](deny.toml))
+- **除外を撤去した。** `zip` の勧告 3 件と、取り下げられた `zip` 8.6.0 の除外を、`deny.toml`・`ci.yml`・`audit.yml`・`scripts/check.sh` から外した。`cargo audit` と `cargo deny` は除外なしで通る。唯一の git の取得元である `calamine` は、`deny.toml` で名指しで許可する。([deny.toml](deny.toml)、[.github/workflows/ci.yml](.github/workflows/ci.yml)、[.github/workflows/audit.yml](.github/workflows/audit.yml)、[scripts/check.sh](scripts/check.sh))
+
+### 変更
+- **リリースのビルドを `--locked` にした。** Windows のリリースの 4 つのコンパイル（`trunk build`・エンジン・設定アプリ・`cargo tauri build`）は、ロックファイルが変わるなら止まる。([.github/workflows/release-windows.yml](.github/workflows/release-windows.yml))
+- **版数を 2.9.12 に揃えた**（エンジン・デスクトップアプリ・設定アプリ・Web UI、各サブクレートの `Cargo.lock` を含む）。MSI 名は `XOKSA-2.9.12-x64.msi`。
 
 ---
 
