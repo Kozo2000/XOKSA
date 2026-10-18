@@ -18,7 +18,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [2.9.12] — unreleased
 
-In the final stage of the v2.9.11 shipping inspection — the CI of the pull request that brings the record into `main` — three advisories were found against `zip` 8.6.0, which the engine carries for reading Excel files through `calamine`. RustSec rates one Critical, one High, and publishes no score for the third:
+XOKSA reads Excel files with the `calamine` library, which uses the `zip` component internally to open them (an Excel file is a compressed archive inside). XOKSA itself does not depend on `zip` and has no feature that creates or extracts ZIP files. In the final stage of the v2.9.11 shipping inspection — the CI of the pull request that brings the record into `main` — three advisories were found against that component, `zip` 8.6.0. RustSec rates one Critical, one High, and publishes no score for the third:
 
 - RUSTSEC-2026-0367 (GHSA-vv5m-jxxh-4627): SUID/SGID bits are preserved on extraction. CVSS 7.3 High (`CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H`).
 - RUSTSEC-2026-0368 (GHSA-4v9h-p7m9-rh26): `ZipArchive::extract` creates symbolic links whose targets lie outside the destination directory. No CVSS score is published (the GitHub advisory rates it high).
@@ -27,7 +27,7 @@ In the final stage of the v2.9.11 shipping inspection — the CI of the pull req
 All three are in extracting an archive to the filesystem (`extract`), which XOKSA does not use. Even so, a component with Critical- and High-severity flaws is not left in a shipped artifact: it is replaced with the fixed `zip` 9 (9.0.4). That requires a rebuild, so the version moves to v2.9.12, and signing and the shipping inspection are done again.
 
 ### Security
-- **`zip` 9.0.4 in place of 8.6.0.** No `calamine` release accepts `zip` 9 yet, so the engine takes `calamine` from tafia/calamine pull request #741 ("chore(deps): upgrade zip to 9.0"), pinned to the full commit `d2ddf8837d301011011439708c8395310cee3906` through `[patch.crates-io]`. The commit was reviewed before it was taken: the eleven commits since 0.36.1, the `quick-xml` 0.42 it brings, and the advisories of all three crates. The review is recorded in the v2.9.12 shipping inspection. When a `calamine` release on crates.io accepts `zip` 9 and passes the same checks, the pin is removed. ([Cargo.toml](Cargo.toml), [deny.toml](deny.toml))
+- **The Excel-reading library's `zip` component is updated from 8.6.0 to 9.0.4.** No `calamine` release accepts `zip` 9 yet, so the engine takes `calamine` from tafia/calamine pull request #741 ("chore(deps): upgrade zip to 9.0"), pinned to the full commit `d2ddf8837d301011011439708c8395310cee3906` through `[patch.crates-io]`. The commit was reviewed before it was taken: the eleven commits since 0.36.1, the `quick-xml` 0.42 it brings, and the advisories of all three crates. The review is recorded in the v2.9.12 shipping inspection. When a `calamine` release on crates.io accepts `zip` 9 and passes the same checks, the pin is removed. ([Cargo.toml](Cargo.toml), [deny.toml](deny.toml))
 - **The exceptions are removed.** The three `zip` advisories and the yanked `zip` 8.6.0 are no longer excepted in `deny.toml`, `ci.yml`, `audit.yml` or `scripts/check.sh`; `cargo audit` and `cargo deny` pass without them. The one git source, `calamine`, is allowed by name in `deny.toml`. ([deny.toml](deny.toml), [.github/workflows/ci.yml](.github/workflows/ci.yml), [.github/workflows/audit.yml](.github/workflows/audit.yml), [scripts/check.sh](scripts/check.sh))
 
 ### Changed
@@ -144,7 +144,7 @@ All three are in extracting an archive to the filesystem (`extract`), which XOKS
 
 ## [2.9.12] — 未リリース
 
-v2.9.11 の出荷検査の最終段（記録を main に取り込むプルリクエストの CI）で、エンジンが Excel の読み込み（`calamine` 経由）のために含む `zip` 8.6.0 に、勧告 3 件が見つかった。RustSec の評価では、Critical が 1 件、High が 1 件、点数の公表が無いものが 1 件である。
+XOKSA は Excel ファイルの読み込みに `calamine` というライブラリを使っており、このライブラリが Excel ファイルを開くために内部で `zip` という部品を使う（Excel ファイルは中身が圧縮形式のため）。XOKSA 自身は `zip` に依存しておらず、ZIP ファイルを作る機能も展開する機能も持たない。v2.9.11 の出荷検査の最終段（記録を main に取り込むプルリクエストの CI）で、この部品 `zip` 8.6.0 に勧告 3 件が見つかった。RustSec の評価では、Critical が 1 件、High が 1 件、点数の公表が無いものが 1 件である。
 
 - RUSTSEC-2026-0367（GHSA-vv5m-jxxh-4627）：展開時に SUID/SGID ビットを保持する。CVSS 7.3 High（`CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H`）
 - RUSTSEC-2026-0368（GHSA-4v9h-p7m9-rh26）：`ZipArchive::extract` が展開先の外を指すシンボリックリンクを作る。CVSS の点数は公開されていない（GitHub の勧告の深刻度は high）
@@ -153,7 +153,7 @@ v2.9.11 の出荷検査の最終段（記録を main に取り込むプルリク
 3 件とも、ZIP をファイルシステムへ展開する機能（`extract`）の欠陥で、XOKSA はこの機能を使っていない。それでも、深刻度 Critical・High の欠陥を含む部品を出荷物に残さないため、修正版の `zip` 9（9.0.4）に替える。これには再ビルドが必要となるため、版を v2.9.12 に上げ、再署名と出荷検査をやり直す。
 
 ### セキュリティ
-- **`zip` を 8.6.0 から 9.0.4 に。** `zip` 9 を受け入れる `calamine` の正式版はまだ無いため、エンジンは tafia/calamine のプルリクエスト #741（「chore(deps): upgrade zip to 9.0」）の `calamine` を、`[patch.crates-io]` で完全なコミット `d2ddf8837d301011011439708c8395310cee3906` に固定して使う。採る前に審査した——0.36.1 以降の 11 コミット、それに伴う `quick-xml` 0.42、3 つの部品すべての勧告。審査の記録は v2.9.12 の出荷検査に置く。`zip` 9 を受け入れる `calamine` の正式版が crates.io に出て、同じ検査を通ったら、固定を外す。([Cargo.toml](Cargo.toml)、[deny.toml](deny.toml))
+- **Excel 読み込みライブラリの部品 `zip` を 8.6.0 から 9.0.4 に。** `zip` 9 を受け入れる `calamine` の正式版はまだ無いため、エンジンは tafia/calamine のプルリクエスト #741（「chore(deps): upgrade zip to 9.0」）の `calamine` を、`[patch.crates-io]` で完全なコミット `d2ddf8837d301011011439708c8395310cee3906` に固定して使う。採る前に審査した——0.36.1 以降の 11 コミット、それに伴う `quick-xml` 0.42、3 つの部品すべての勧告。審査の記録は v2.9.12 の出荷検査に置く。`zip` 9 を受け入れる `calamine` の正式版が crates.io に出て、同じ検査を通ったら、固定を外す。([Cargo.toml](Cargo.toml)、[deny.toml](deny.toml))
 - **除外を撤去した。** `zip` の勧告 3 件と、取り下げられた `zip` 8.6.0 の除外を、`deny.toml`・`ci.yml`・`audit.yml`・`scripts/check.sh` から外した。`cargo audit` と `cargo deny` は除外なしで通る。唯一の git の取得元である `calamine` は、`deny.toml` で名指しで許可する。([deny.toml](deny.toml)、[.github/workflows/ci.yml](.github/workflows/ci.yml)、[.github/workflows/audit.yml](.github/workflows/audit.yml)、[scripts/check.sh](scripts/check.sh))
 
 ### 変更
