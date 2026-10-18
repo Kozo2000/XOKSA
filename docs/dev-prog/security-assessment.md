@@ -329,7 +329,7 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 
 **Binary-bound items pending (recorded at ship-time, per this C.4 convention):** per-artifact SHA-256, VirusTotal on the shipped hashes (deferred until code signing, as for v2.7.0), the OWASP ZAP passive scan, and the per-OS SBOM regeneration are measured at the tag/CI ship step against the frozen binary. This record is the source-level evidence at working-tree state and does not substitute for the on-artifact measurement.
 
-### v2.9.12 (Windows) — inspected 2026-10-17 to 2026-10-18 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, SCA, SBOM, ZAP, VirusTotal)
+### v2.9.12 (Windows) — inspected 2026-10-17 to 2026-10-18 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, SCA, SBOM, ZAP, VirusTotal); **published 2026-10-18 20:14 JST** (tag `v2.9.12` at `cb90df7`)
 
 **Why this release exists.** In the final stage of the v2.9.11 shipping inspection — the CI of the pull request that brings the record into `main` (PR #22) — three advisories were found against `zip` 8.6.0, a component inside `calamine` 0.36.1, the library the engine reads Excel files with (an Excel file is a compressed archive inside): RUSTSEC-2026-0367 (CVSS 7.3 High), RUSTSEC-2026-0368 (no score published) and RUSTSEC-2026-0369 (CVSS 9.1 Critical). XOKSA does not depend on `zip` directly and has no feature that creates or extracts ZIP files. All three are in extracting an archive to the filesystem (`extract`), which XOKSA does not use. Even so, a component with these flaws is not left in a shipped artifact: it is replaced with the fixed `zip` 9.0.4. The v2.9.11 record above keeps its account of the exceptions added on 2026-10-17; this release removes them.
 
@@ -370,7 +370,11 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 
 **Operational note.** An engine started with no window gets no visible firewall prompt; Windows recorded a block rule for the new path, and the LAN scan could not connect until the owner changed it to allow on private networks.
 
-**Not measured:** MSI uninstall, and a runtime prompt injection (H1), for the reasons given at v2.9.10. What a first-time user sees on the published release is recorded after publication (rule 8).
+**First-time user — 2026-10-18, on the published release.** The owner uninstalled XOKSA, downloaded `XOKSA-2.9.12-x64.msi` from the release page and installed it. Microsoft Defender SmartScreen stopped it as an unrecognized app; under **More info** it showed the publisher `JP, Tokyo, Tokyo, Open Source Developer, Open Source Developer Kohzoh Tsuchiya`, and **Run** continued. No other warning appeared, and XOKSA started. The installed `xoksa.exe`, `xoksa-desktop.exe` and `xoksa-setup.exe` match the frozen artifacts above by SHA-256, and GitHub's SHA-256 for the three attached files (the MSI, the manuals and `SHA256SUMS`) matches the local files.
+
+The command reference in the manuals distributed with this release (`xoksa-manuals-2.9.12.zip`) is titled v2.9.11: the review on PR #23 found it after the package was built. Its content is unchanged from v2.9.11; the title is corrected in the next version.
+
+**Not measured:** MSI uninstall, and a runtime prompt injection (H1), for the reasons given at v2.9.10.
 
 ### v2.9.11 (Windows) — inspected 2026-10-16 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, ZAP, SCA, SBOM, VirusTotal); **published 2026-10-17 14:55 JST** (tag `v2.9.11` at `ef3faeb`)
 
@@ -1327,7 +1331,7 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 
 **現物依存項目は保留（出荷時に本節へ記録・C.4 の慣例通り）：** 現物別 SHA-256・出荷ハッシュへの VirusTotal（v2.7.0 同様、コード署名まで延期）・OWASP ZAP パッシブスキャン・OS別 SBOM 再生成は、tag→CI が凍結した現物に対して実測する。本記録は作業ツリー時点のソース級証跡であり、現物実測の代替ではない。
 
-### v2.9.12（Windows）— CI ビルド現物を 2026-10-17〜10-18 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／SCA／SBOM／ZAP／VirusTotal）
+### v2.9.12（Windows）— CI ビルド現物を 2026-10-17〜10-18 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／SCA／SBOM／ZAP／VirusTotal）。**2026-10-18 20:14 JST 公開**（タグ `v2.9.12` は `cb90df7`）
 
 **この版の理由。** v2.9.11 の出荷検査の最終段（記録を `main` に取り込むプルリクエスト（PR #22）の CI）で、エンジンが Excel の読み込みに使うライブラリ `calamine` 0.36.1 の内部の部品 `zip` 8.6.0 に、勧告 3 件が見つかった（Excel ファイルは中身が圧縮形式のため、`calamine` が `zip` を使う）。XOKSA は `zip` に直接依存しておらず、ZIP ファイルを作る機能も展開する機能も持たない。RUSTSEC-2026-0367（CVSS 7.3 High）、RUSTSEC-2026-0368（点数の公表なし）、RUSTSEC-2026-0369（CVSS 9.1 Critical）。3 件とも、ZIP をファイルシステムへ展開する機能（`extract`）の欠陥で、XOKSA はこの機能を使っていない。それでも、これらの欠陥を含む部品を出荷物に残さず、修正版の `zip` 9.0.4 に替える。上の v2.9.11 の記録は、2026-10-17 に例外を加えた経緯をそのまま残す。この版で例外を撤去した。
 
@@ -1368,7 +1372,11 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 
 **運用上の注記。** ウィンドウを出さずに起動したエンジンには、ファイアウォールの許可を求める画面が見えない。Windows は新しい場所のプログラムにブロックの規則を記録し、オーナーがプライベートネットワークでの許可に変えるまで、LAN 越しのスキャンは接続できなかった。
 
-**未実測：** MSI のアンインストールと、ランタイムのプロンプトインジェクション（H1）。理由は v2.9.10 のとおり。公開されたリリースで初回利用者が見る画面は、公開の後に記録する（規則 8）。
+**初回利用者——2026-10-18、公開されたリリースで。** オーナーが XOKSA をアンインストールし、リリースのページから `XOKSA-2.9.12-x64.msi` をダウンロードしてインストールした。Microsoft Defender SmartScreen が認識されないアプリとして止め、「詳細情報」で発行元 `JP, Tokyo, Tokyo, Open Source Developer, Open Source Developer Kohzoh Tsuchiya` を表示し、「実行」で進んだ。ほかの警告は出ず、XOKSA は起動した。インストールされた `xoksa.exe`・`xoksa-desktop.exe`・`xoksa-setup.exe` は上の凍結した現物と SHA-256 で一致し、配布した 3 つのファイル（MSI・マニュアル・`SHA256SUMS`）の GitHub 上の SHA-256 は手元のファイルと一致する。
+
+この版で配布しているマニュアル一式（`xoksa-manuals-2.9.12.zip`）のうち、コマンドリファレンスの題名は v2.9.11 のままである。一式を作った後に、PR #23 のレビューで見つかった。内容は v2.9.11 から変わっておらず、題名は次の版で直す。
+
+**未実測：** MSI のアンインストールと、ランタイムのプロンプトインジェクション（H1）。理由は v2.9.10 のとおり。
 
 ### v2.9.11（Windows）— CI ビルド現物を 2026-10-16 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／ZAP／SCA／SBOM／VirusTotal）。**2026-10-17 14:55 JST 公開**（タグ `v2.9.11` は `ef3faeb`）
 
