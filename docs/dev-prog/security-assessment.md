@@ -354,7 +354,7 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 - **Payload identity**: with the signatures removed and the PE checksum zeroed, the three executables match CI's `to-sign/` byte for byte; the MSI, extracted administratively, holds exactly the three signed executables.
 - **Build-path gate**: passes on the three executables and the MSI.
 - **AV recipe**: engine `.rsrc` 2,048 B at entropy 4.178 and `.rdata` 5,198,848 B at 5.882; desktop `.rsrc` 32,768 B at 3.898; settings app `.rsrc` 32,768 B at 3.900 — all within 0.01 of v2.9.10's figures.
-- **Static**: `scripts/check.sh` — 17 gates green, nothing skipped, 491 tests; the settings app's fmt and clippy also clean; `cargo audit` and `cargo deny` pass with no `zip` exception.
+- **Static**: `scripts/check.sh` — 15 gates green, nothing skipped, 491 tests; the settings app's fmt and clippy also clean; `cargo audit` and `cargo deny` pass with no `zip` exception.
 - **SCA**: `osv-scanner` — engine **0**; the WASM's four (`event-listener` 5.4.1's unsound RUSTSEC-2026-0221, unreachable as recorded at v2.9.11, plus `paste`, `proc-macro-error2` and `xxhash-rust`, which do not reach the WASM); the desktop shell's and settings app's seven — the five unmaintained `unic-*` crates, which do reach the shipped binaries through `urlpattern` (unmaintained, no vulnerability), and `glib` and `proc-macro-error`, which are not in the Windows build. `nix` 0.31.3, which `zip` 9.0.4 brings, is not in the Windows build.
 - **SOT**: on NVDA, 50 of 51 columns agree across CSV, JSON and `/api/symbol/NVDA/summary`; the remaining one is `analyzed_at_timestamp`, the run time, one to two seconds apart.
 - **Runtime**: `inspect.sh` 9/9; headless Edge mounts the WASM app (3 selects, 4 inputs, 7 buttons, Japanese UI).
@@ -1352,7 +1352,7 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 - **ペイロード同一性**：署名を外し PE チェックサムを 0 にすると、実行ファイル 3 本は CI の `to-sign/` とバイト単位で一致。MSI を管理用に展開すると、中身は署名済みの 3 本だけ。
 - **ビルドパスのゲート**：3 本と MSI のすべてで合格。
 - **AV レシピ**：エンジンの `.rsrc` 2,048 B・エントロピー 4.178、`.rdata` 5,198,848 B・5.882。デスクトップの `.rsrc` 32,768 B・3.898。設定アプリの `.rsrc` 32,768 B・3.900——いずれも v2.9.10 の数値から 0.01 以内。
-- **静的**：`scripts/check.sh` のゲート 17 本が緑・skipped 0・テスト 491 件。設定アプリの fmt・clippy も合格。`cargo audit` と `cargo deny` は `zip` の例外なしで合格。
+- **静的**：`scripts/check.sh` のゲート 15 本が緑・skipped 0・テスト 491 件。設定アプリの fmt・clippy も合格。`cargo audit` と `cargo deny` は `zip` の例外なしで合格。
 - **SCA**：`osv-scanner`——エンジン **0**。WASM の 4 件（`event-listener` 5.4.1 の unsound RUSTSEC-2026-0221 は v2.9.11 の記録のとおり到達不能、`paste`・`proc-macro-error2`・`xxhash-rust` は WASM に入らない）。デスクトップと設定アプリの 7 件——保守終了の `unic-*` 5 件は `urlpattern` 経由で出荷物に入る（保守終了の通知で脆弱性ではない）、`glib` と `proc-macro-error` は Windows のビルドに入らない。`zip` 9.0.4 が連れてくる `nix` 0.31.3 は Windows のビルドに入らない。
 - **SOT**：NVDA で、CSV・JSON・`/api/symbol/NVDA/summary` の 51 列中 50 列が一致。残る 1 列は実行時刻の `analyzed_at_timestamp` で、1〜2 秒の差。
 - **ランタイム**：`inspect.sh` 9/9。ヘッドレスの Edge で WASM の画面が組み上がる（select 3・input 4・button 7、日本語 UI）。
