@@ -193,7 +193,7 @@ A static review of `src/` against the 2023 list, first made 2026-09-29 and **re-
 | API9 | Improper Inventory Management | **PARTIAL** | `/api/health` reports the service name and version and the desktop requires an exact match. There is no version in the path and no machine-readable spec — by design (§0.2) for a pair shipped together. |
 | API10 | Unsafe Consumption of APIs | **PARTIAL** (was: none) | Every external client has a timeout, and the §1 output-integrity guard goes beyond what this item asks of an LLM response. Redirects are now bounded (API7). Response size is capped **on the Ollama path only** — plaintext HTTP to a user-configured host — because that is where a reply can come from something other than the intended server; the TLS paths to hosts fixed in code are deliberately untouched. |
 
-**What this mapping does not cover.** It is a source review, not a dynamic test — the dynamic evidence per release is in Part C. Two of the three open questions this review listed are now answered: `reqwest` does **not** strip `x-api-key` across a cross-host redirect (measured against the crate's `remove_sensitive_headers`, which is why API7's fix also closed a key-leak path), and ZAP has been run against the shipped artifacts of every release since — most recently v2.9.10 (Windows), 8 alerts and 0 High, with each alert's basis measured on that artifact (C.4). The third stands: API3 was confirmed on `/api/config` and the key-presence path, not by sweeping every handler's response fields.
+**What this mapping does not cover.** It is a source review, not a dynamic test — the dynamic evidence per release is in Part C. Two of the three open questions this review listed are now answered: `reqwest` does **not** strip `x-api-key` across a cross-host redirect (measured against the crate's `remove_sensitive_headers`, which is why API7's fix also closed a key-leak path), and ZAP has been run against the shipped artifacts of every release since — most recently v2.9.11 (Windows), 8 alerts and 0 High, with each alert's basis measured on that artifact (C.4). The third stands: API3 was confirmed on `/api/config` and the key-presence path, not by sweeping every handler's response fields.
 
 ---
 
@@ -225,6 +225,8 @@ A shipping inspection binds to **one frozen local artifact by hash**: build once
 
 **From v2.9.9 the release build runs on CI, not on a developer machine.** `.github/workflows/release-windows.yml` performs steps 1–5 above on a `windows-latest` runner and, before uploading, runs `scripts/check-no-host-paths.sh` over every artifact. The reason is §C.4's v2.9.9 record: rustc bakes each crate's source path into the binary for its panic messages, so a developer-machine build ships the builder's account name, and neither `strip = true` nor `--remap-path-prefix` removes all of it. A local build is still fine for development; it is no longer what gets inspected or shipped.
 
+**From v2.9.11 the Windows release is signed between two CI runs.** `release-windows.yml` builds as above and places the three executables taken from inside its unshipped MSI in `to-sign/`. They are signed on the owner's machine (the key lives in Certum's cloud and cannot reach a runner) and attached to a hand-off draft release. `release-windows-package.yml` then packages the shipped MSI from them without compiling, and the MSI is signed last. The standalone `xoksa-desktop.exe` must not be signed: Tauri stamps three bytes into the copy it packs, which breaks a signature applied beforehand.
+
 **Start the inspected engine from a directory that contains no `webui-leptos/dist`.** `--web-dir` defaults to that **relative** path, and `read_asset` prefers an on-disk file over the binary's embedded copy — intended for development, but it means an engine launched from the repository root serves the working tree's frontend instead of its own. An inspection run that way is not bound to the artifact: this release's first ZAP scan had to be discarded because it scanned a stale local frontend while the engine under test was the CI one. Whatever the scan, confirm the binding by fetching `/` and checking the `xoksa-webui-<hash>` it references against the WASM in the artifact set.
 
 **Binding the inspection to its source.** A hash says *which file* was inspected; it does not say *which source produced it*. Two failures during the v2.6.8 release made the gap concrete: a release was published before its source was committed, so `gh release create --target main` tagged a commit that did not contain the code; and a dependency update merged mid-inspection, leaving the first build unreproducible from the merged source. Six rules close it, and every record from v2.7.0 onward follows them.
@@ -236,6 +238,7 @@ A shipping inspection binds to **one frozen local artifact by hash**: build once
 5. **If the base moves between the build and the publish, rebuild and re-inspect.** The artifact is bound to one source; a source that has moved is a different source.
 6. **Never delete a release branch.** Squash & Merge folds a branch's commits into one new commit on `main`, so the commit a record names survives **only on that branch** — measured at v2.9.8: `5065da8` (v2.9.7) and `e8b973d` (v2.9.8) are both unreachable from `main` and present only on `origin/release/v2.9.7` and `origin/release/v2.9.8`. Deleting the branch would leave the record pointing at nothing. `deleteBranchOnMerge` is therefore off for this repository.
 7. **A §C.4 heading states dated facts, never a mutable state.** "Not yet shipped" is true until it is not, and nothing makes it change: v2.9.9's record carried it while the release went out **twelve minutes later**, and the other side of the project read it, believed the version was unpublished, and rebuilt a macOS artifact against a source the published one does not match — half a day lost. So a heading carries *when it was inspected* and *when it was published*, both of which stay true; the **current** state lives in one place only, the handover note, which is overwritten rather than appended. **Publishing is not finished until the §C.4 heading carries the publication date**, in both languages.
+8. **What only publication can settle is recorded after it, as a formal update of the record.** Everything that can be measured before publication — the source commit, the CI run IDs, the signed artifacts' hashes, the inspection results and the SBOM — is merged before the release is published (rule 2). The publication date, and anything that can only be observed on the published release, such as what a first-time user sees after downloading it, are added afterwards in a pull request that changes nothing but §C.4. That pull request is a required step of every release, not a follow-up fix.
 
 **Across a repository migration.** This project plans to publish a fresh repository built from `main`'s current tree **without carrying the history**. Every commit a §C.4 record names, and every `release/*` branch holding one, stays behind with that history — and so would any tag, since a tag travels with the commit it points at. The decision recorded here is that **the source repository is kept as a private archive rather than deleted**, so those commits stay reachable: a record written before the migration refers to the archive, not to the published repository. Rule 6 therefore keeps applying *to the archive* — the release branches must survive there — and the first §C.4 record written after the migration states which repository it is bound to, so no record is ambiguous about where its commit lives.
 
@@ -271,9 +274,10 @@ tree of `Kozo2000/xoksa-dev` at `9d05cc7` — **without its history** — and th
 here. Every record written before the migration (v2.9.10 and earlier) names commits and
 `release/*` branches that exist only in `Kozo2000/xoksa-dev`, which is kept as a **private archive rather than
 deleted** precisely so they stay reachable (§C.1, "Across a repository migration").
-A record's tag line is read the same way: `v2.9.10` names `9d05cc7` in the archive, and the tag
-of the same name here points at this repository's own initial commit, which carries the
-identical tree. Records written from the next release onward are bound to this repository.
+A record's tag line is read the same way: `v2.9.10` names `b3ef8e1` in the archive, and the tag
+of the same name here points at this repository's own initial commit `d61ab53`. Its program is
+identical to the archive's `9d05cc7`; the two differ only in documentation (four Markdown files)
+written for the migration. Records written from the next release onward are bound to this repository.
 
 
 ### v2.2.3 (shipped 2026-07-09)
@@ -324,6 +328,90 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 **§4.2 duplication — resolved (behaviour-preserving throughout).** Consolidated to one source: #1 the adjusted-score line (10 copies → 1 `adjusted_score_line`), #3 `send_cloud_prompt` (3 provider senders → 1), #5 `key_present_in_env_file` → `read_key_from_env_file`, #6 the score-unavailable labels unified on "情報なし/unavailable" (utils the single source), #7 `colored_price_diff`, #8 `cloud_provider_rows`, #10 `send_chat_turn_dispatch`, #2 `group_thousands` (each caller keeps its own f64→int conversion — display-only), #4 `parse_env_line` (+ `live_ollama_instances` now uses `load_env_map`; each caller keeps its own Class-A filter, so a Class A value is never materialized), #9 `sanitize_symbol_result` (returns the error so the four reporting sites keep their message), #11 the operator symbol via `rule_operator_catalog`, #12 `fundamental_value_lines` (the revenue→next-FY value block; the display vs LLM header blocks are distinct views and stay per-function), #13 `cross_status`/`CrossLabels`, #14 `deviation_line`, #15 `symbol_of` reuse, #16 `ChatTokenUsage::accumulate`, #17 `on_off`, #18 the context.rs percent-change via `displayed_price_diff`. **Verified NOT a real duplicate implementation, left as-is:** #19 — `fmt_num` and `fmt_currency_auto` produce different output (no-symbol 4-dp vs symbol+commas 2-dp); their only shared token is the `100.0` threshold, which also drives the §1 output-integrity guard, so unifying it would false-couple display precision with a security threshold. Distinct sub-parts were likewise left (not duplicates): the `parse_alert_condition` operator ordering and the eval semantics in #11; the raw-bar (indicators.rs) and reload-delta (chat) percent computations in #18.
 
 **Binary-bound items pending (recorded at ship-time, per this C.4 convention):** per-artifact SHA-256, VirusTotal on the shipped hashes (deferred until code signing, as for v2.7.0), the OWASP ZAP passive scan, and the per-OS SBOM regeneration are measured at the tag/CI ship step against the frozen binary. This record is the source-level evidence at working-tree state and does not substitute for the on-artifact measurement.
+
+### v2.9.12 (Windows) — inspected 2026-10-17 to 2026-10-18 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, SCA, SBOM, ZAP, VirusTotal)
+
+**Why this release exists.** In the final stage of the v2.9.11 shipping inspection — the CI of the pull request that brings the record into `main` (PR #22) — three advisories were found against `zip` 8.6.0, a component inside `calamine` 0.36.1, the library the engine reads Excel files with (an Excel file is a compressed archive inside): RUSTSEC-2026-0367 (CVSS 7.3 High), RUSTSEC-2026-0368 (no score published) and RUSTSEC-2026-0369 (CVSS 9.1 Critical). XOKSA does not depend on `zip` directly and has no feature that creates or extracts ZIP files. All three are in extracting an archive to the filesystem (`extract`), which XOKSA does not use. Even so, a component with these flaws is not left in a shipped artifact: it is replaced with the fixed `zip` 9.0.4. The v2.9.11 record above keeps its account of the exceptions added on 2026-10-17; this release removes them.
+
+**What changed.** No `calamine` release accepts `zip` 9 yet, so the engine takes `calamine` from tafia/calamine pull request #741, pinned through `[patch.crates-io]` to the full commit `d2ddf8837d301011011439708c8395310cee3906`. Before it was taken, the eleven commits from 0.36.1 to that commit (14 files) were reviewed: no `unsafe` before or after, no new dependency other than `zip` 9.0 and `quick-xml` 0.42, and no known advisory for `calamine` at that commit, `quick-xml` 0.42.0 or `zip` 9.0.4 (RustSec and GitHub advisories). `cargo audit` does not check a git-sourced crate, so `calamine` was checked against both databases by hand. The three `zip` advisories and the yanked-`zip` exception were removed from `deny.toml`, `ci.yml`, `audit.yml` and `scripts/check.sh`; the one git source is allowed by name in `deny.toml`. The Windows release builds are `--locked`. When a `calamine` release on crates.io accepts `zip` 9 and passes the same checks, the pin is removed.
+
+**Build provenance — GitHub Actions `Release build (Windows)` run `39019806094`, source commit `cb90df7` on `v2.9.12-zip9`**, `rustc 1.98.1`, read out of all three executables. The executables were signed on the owner's machine, handed over through the draft release `v2.9.12-signing`, and the shipped installer was packaged from them without compiling by `Package signed installer (Windows)` run `39024435561`, which checked out the same `cb90df7`; the MSI was signed last (§C.1).
+
+**Signing.** Certum Open Source Code Signing (cloud), serial `30e49e39125ad5e47056f4f08b867ef5`, thumbprint `fe46d4e648938217c4255920b6cdf519a3836fe6`. The MSI and the three executables each verify as `Valid` with a Certum timestamp — measured 2026-10-17.
+
+**Frozen Windows artifacts** (signed):
+
+| Artifact | SHA-256 | Size |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.12-x64.msi` (installer, carries the three binaries below) | `d422cecc8b22b729943e99a1211d22d595e55d3c59fc54a6ad7dbfda5981df84` | 11,759,616 B |
+| `xoksa.exe` (engine) | `43099ce01fdd5b60207599ab65fb4d2b430a20c474e4cc59fc9b6a7cea6e7344` | 14,875,232 B |
+| `xoksa-desktop.exe` (connection shell) | `2c6c4c070276ae0503582125240aef36920f4470f6a3e2d0b77e5df61220906b` | 9,640,032 B |
+| `xoksa-setup.exe` (settings app) | `dbf1a7995135b16a79de3f77fff79b390e75a953f349a4f0cc0b795ee2ccfc41` | 8,425,056 B |
+| `xoksa-webui-29b39bbd85ec2e88_bg.wasm` (frontend embedded in the engine) | `95061a62f09a6103bbacd9bee6769dadc34a36c495582479681108b85f52fc1f` | 724,566 B |
+| `xoksa-manuals-2.9.12.zip` (manuals, built from `cb90df7` on `v2.9.12-zip9`) | `a53fcd310b09baaf27148a85489c2e2baac29def3029cb0f1a4ef2d67c3b353f` | 19,029,048 B |
+
+**Results measured on 2026-10-17.**
+- **Payload identity**: with the signatures removed and the PE checksum zeroed, the three executables match CI's `to-sign/` byte for byte; the MSI, extracted administratively, holds exactly the three signed executables.
+- **Build-path gate**: passes on the three executables and the MSI.
+- **AV recipe**: engine `.rsrc` 2,048 B at entropy 4.178 and `.rdata` 5,198,848 B at 5.882; desktop `.rsrc` 32,768 B at 3.898; settings app `.rsrc` 32,768 B at 3.900 — all within 0.01 of v2.9.10's figures.
+- **Static**: `scripts/check.sh` — 15 gates green, nothing skipped, 491 tests; the settings app's fmt and clippy also clean; `cargo audit` and `cargo deny` pass with no `zip` exception.
+- **SCA**: `osv-scanner` — engine **0**; the WASM's four (`event-listener` 5.4.1's unsound RUSTSEC-2026-0221, unreachable as recorded at v2.9.11, plus `paste`, `proc-macro-error2` and `xxhash-rust`, which do not reach the WASM); the desktop shell's and settings app's seven — the five unmaintained `unic-*` crates, which do reach the shipped binaries through `urlpattern` (unmaintained, no vulnerability), and `glib` and `proc-macro-error`, which are not in the Windows build. `nix` 0.31.3, which `zip` 9.0.4 brings, is not in the Windows build.
+- **SOT**: on NVDA, 50 of 51 columns agree across CSV, JSON and `/api/symbol/NVDA/summary`; the remaining one is `analyzed_at_timestamp`, the run time, one to two seconds apart.
+- **Runtime**: `inspect.sh` 9/9; headless Edge mounts the WASM app (3 selects, 4 inputs, 7 buttons, Japanese UI).
+- **Frontend binding**: started from a directory without `webui-leptos/dist`, the engine's `/` references `xoksa-webui-29b39bbd85ec2e88` and serves the artifact's own `.wasm`.
+- **Penetration**: the admission cap answers `200` with 255 requests held, `503` at 256, and `200` again after release; a decoy `xoksa.env` in the launch directory is ignored (the report matches a control run except for the analysis time, and the canonical file is unchanged); six path-traversal payloads all 404; two clients receive distinct `HttpOnly` / `SameSite=Strict` `xoksa_sid` cookies; a 5 MB body 413.
+- **The changed import**: the signed engine, given an `.xlsx` through `ALIAS_CSV`, shows the name the workbook assigns to 7203; a truncated `.xlsx` ends with an error and no panic.
+
+**SBOM — four inventories regenerated** from throwaway `cargo auditable` builds of `cb90df7` (derived, not extracted): `xoksa-native-windows-x86_64` **225**, `xoksa-desktop-windows-x86_64` **196**, `xoksa-setup-windows-x86_64` **212**, `xoksa-webui-leptos` **188**, all CycloneDX 1.5 and free of absolute paths. Against the v2.9.11 inventories the engine moves `zip` 8.6.0 → 9.0.4 and `quick-xml` 0.41.0 → 0.42.0; the other three change only this project's own version. The engine inventory lists `calamine` as `pkg:cargo/calamine@0.36.1`: the engine actually carries tafia/calamine commit `d2ddf88`, and the generator does not carry the git source into the inventory. The output is not edited (§C.3). `cargo audit bin` over the throwaway engine's 254 embedded dependencies: 0.
+
+**OWASP ZAP passive scan — 2026-10-18, over the LAN against the signed engine bound to `0.0.0.0:8787` — 8 alert types, 0 High**, the same eight as v2.9.11: Anti-CSRF token missing on `GET /login` (Medium, 1), SRI attribute missing on the `xoksa-webui-29b39bbd8…` asset (1), Unix timestamp disclosure on `/api/symbol/NVDA/summary` (3), cookie poisoning on `POST /auth` (1), session-management response (3), modern web application (1), localStorage (5), suspicious comments (1). The timestamp count was 4 at v2.9.11; the reason has not been examined. A first scan on 2026-10-17 was discarded: the engine on port 8787 was the v2.9.11 one left running from the first-time-user check, as the `xoksa-webui-a8866c04…` asset in its alerts showed.
+
+**VirusTotal** (on the signed artifacts, 2026-10-18): the MSI **0/63**, `xoksa.exe` **0/71**, `xoksa-desktop.exe` **0/71**, `xoksa-setup.exe` **0/71**.
+
+**Operational note.** An engine started with no window gets no visible firewall prompt; Windows recorded a block rule for the new path, and the LAN scan could not connect until the owner changed it to allow on private networks.
+
+**Not measured:** MSI uninstall, and a runtime prompt injection (H1), for the reasons given at v2.9.10. What a first-time user sees on the published release is recorded after publication (rule 8).
+
+### v2.9.11 (Windows) — inspected 2026-10-16 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, ZAP, SCA, SBOM, VirusTotal); **published 2026-10-17 14:55 JST** (tag `v2.9.11` at `ef3faeb`)
+
+The first record bound to this repository, `Kozo2000/XOKSA`: every commit named below lives here. It is also the first Windows release that is signed.
+
+**Build provenance — GitHub Actions `Release build (Windows)` run `38878871362`, source commit `ef3faeb` on `main`** (the squash merge of #13), `rustc 1.98.1`, read out of all three executables. The executables were then signed on the owner's machine and the shipped installer was packaged from them without compiling by `Package signed installer (Windows)` run `38887039339`; the MSI was signed last (§C.1). That run checked out `c099c26` (#14, a change to that workflow alone), which compiles nothing: the program in every artifact is `ef3faeb`'s.
+
+**Signing.** Certum Open Source Code Signing (cloud), serial `30e49e39125ad5e47056f4f08b867ef5`, thumbprint `fe46d4e648938217c4255920b6cdf519a3836fe6`, valid 2026-10-15 18:49 to 2027-10-15 18:49 JST. The MSI and the three executables each verify as `Valid` with a timestamp — measured during the inspection and again on 2026-10-17 before publication.
+
+**Frozen Windows artifacts** (signed):
+
+| Artifact | SHA-256 | Size |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.11-x64.msi` (installer, carries the three binaries below) | `ca05b4ce556204ae30a6a2a89efec09b9a31a2ccc710d45c89bb0c39eeff54e4` | 11,759,616 B |
+| `xoksa.exe` (engine) | `3e7942a2e583ef559f0c7a164d0dc33b36c697c9b89a9767c26268039392738d` | 14,870,640 B |
+| `xoksa-desktop.exe` (connection shell) | `f0f40d307ea6eeaf507e36c1c923283e47192603af21bee99bb2549aaac31ba4` | 9,640,048 B |
+| `xoksa-setup.exe` (settings app) | `8142e3221d012f7807f130aea824fe5d3837385afade87af8e8880ba5a468a2b` | 8,425,072 B |
+| `xoksa-webui-a8866c04cbf7c7b9_bg.wasm` (frontend embedded in the engine) | `f3d6faddc54121bddfd46b9869c1413f26312a19e885ec72121d7cc6385be85c` | 724,574 B |
+| `xoksa-manuals-2.9.11.zip` (manuals, built from `d4f8eb8` on `v2.9.11-fetch-signed`) | `3a3bcf5cdc4ac65ebeb59d364070b586a188319d6d76fb9de5de322853c2e895` | 19,008,205 B |
+
+**Results measured on 2026-10-16** (as recorded in the handover note): provenance, hashes against the CI record, signing, payload identity (with the signatures removed the executables match CI's, and the MSI's contents match the signed executables), build-path gate, AV recipe (`.rsrc` / `.rdata` at v2.9.10's figures), **static** — fifteen gates green, 491 tests; **SOT** — across the three paths 50 of 51 columns agree, the remaining one being the run time, one second apart; frontend binding; **runtime** 9/9; **penetration** — the admission cap answers `200` with 255 requests held and `503` at 256; the decoy `xoksa.env` is ignored; **SCA** — 0 vulnerabilities in the shipped artifacts; the two findings carried forward (unused `native-tls`, the settings app outside the static gate set) re-checked and unchanged.
+
+**Frontend binding, re-measured on 2026-10-17.** Started from `signed\`, which holds no `webui-leptos/dist`, the engine's `/` references `xoksa-webui-a8866c04cbf7c7b9`, and the served `.wasm` hashes to `f3d6fadd…`, the artifact's own.
+
+**OWASP ZAP passive scan — 2026-10-17, over the LAN against the signed engine bound to `0.0.0.0:8787` — 8 alert types, 0 High**, the same eight as v2.9.8 to v2.9.10: Anti-CSRF token missing on `GET /login` (Medium, 1), SRI attribute missing on the `xoksa-webui-a8866c04…` asset (1), Unix timestamp disclosure on `/api/symbol/NVDA/summary` (4), cookie poisoning on `POST /auth` (1), session-management response (3), modern web application (1), localStorage (5), suspicious comments (1). The HTML the engine serves carries `integrity` on all three subresources, so the SRI alert is again an HTML rule applied to a binary URL. The timestamp instance inspected is `analyzed_at_timestamp` (`1792214849`, the run time); all four are on the summary response, whose timestamps are market and analysis times (Class C). The localStorage instance inspected is `xoksa.tickers`; ZAP raises this alert once per URL and key, so its count follows which keys the browsing session wrote, which is why it moved from 6 to 5.
+
+**SCA notes.** `xxhash-rust` carries a low-severity advisory; it is a build-time dependency and is not in the shipped artifacts.
+
+**Advisories found after the inspection — 2026-10-17.** The "0 vulnerabilities" above is the 2026-10-16 result; the advisory database read then (updated 2026-10-16 15:29 JST) held no entry for them. On 2026-10-17 `cargo audit` and `cargo deny` report three advisories against `zip` 8.6.0, which the shipped engine carries through `calamine` 0.36.1: RUSTSEC-2026-0367, -0368 and -0369. All three are in extracting an archive to the filesystem (`ZipArchive::extract`, `ZipStreamReader::extract`). XOKSA does not use `zip` directly, and `calamine` opens a workbook with `ZipArchive::new` and reads its entries in memory; it never calls `extract` (searched in the `calamine` 0.36.1 source). The flaws are therefore not reachable in the shipped engine. The fix is `zip` 9.0.0 or later, which no `calamine` release accepts yet, so the three are ignored with that reason in `deny.toml` and in the `cargo audit` steps, to be removed when `calamine` moves to `zip` 9. The total yank of `zip` 8.x recorded on 2026-10-16 was the forerunner of these advisories.
+
+**SBOM — four inventories regenerated** from throwaway `cargo auditable` builds of the same source (derived, not extracted — CI does not build with `auditable`): `xoksa-native-windows-x86_64` **225** library components, `xoksa-desktop-windows-x86_64` **196**, `xoksa-setup-windows-x86_64` **212**, `xoksa-webui-leptos` **188**, all CycloneDX 1.5 and free of absolute paths. Against the v2.9.10 inventories the engine moves `clap` 4.6.1 → 4.6.7 (`clap_builder` 4.6.0 → 4.6.7), the `futures` family 0.3.32 → 0.3.34, `rustls` 0.23.45 → 0.23.46 and `serde_json` 1.0.150 → 1.0.154; the other three change only this project's own version. The v2.9.10 WASM inventory named the file it read as `/private/tmp/sbom2910/xoksa-webui/Cargo.lock`, a macOS temporary path; the regenerated one does not. The macOS engine inventory is left for the macOS build.
+
+**VirusTotal** (on the signed artifacts): the MSI **0/62**, `xoksa.exe` **0/71**, `xoksa-desktop.exe` **0/71**, `xoksa-setup.exe` **0/55**.
+
+**What a first-time user sees — measured on 2026-10-17 on the owner's everyday PC** (XOKSA uninstalled beforehand, its configuration kept), with the published MSI downloaded through a browser. SmartScreen still blocks full-screen; **More info** now shows the certificate's subject as the publisher, where v2.9.10 showed an unknown publisher. User Account Control did not appear, and the installation succeeded. This is a different environment from v2.9.10's clean Windows 10 VM, so the absence of the UAC prompt is recorded as observed, not attributed to signing. The SmartScreen block is reputation, which accrues on the certificate rather than being granted at once; the MSI was submitted to Microsoft Security Intelligence as incorrectly detected on 2026-10-17.
+
+**Operational note.** A `serve` started without `--private` writes its diagnostic log to `logs\` under the directory it was started from, so an inspection run from `signed\` leaves a `logs\` folder beside the artifacts.
+
+**Not measured:** MSI uninstall, and a runtime prompt injection (H1), for the reasons given at v2.9.10.
+
+**Published 2026-10-17 14:55 JST** (tag `v2.9.11` at `ef3faeb`).
 
 ### v2.9.10 (macOS) — inspected 2026-10-02 on the CI-built artifacts, signed and notarized — PASS (static, SOT, runtime, penetration, payload identity, SCA, SBOM, signing/notarization, VirusTotal, ZAP); **published 2026-10-03 07:09 JST** (tag `v2.9.10` at `b3ef8e1`)
 
@@ -1104,7 +1192,7 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 | API9 | Improper Inventory Management | **部分的** | `/api/health` が名前と版を返し、デスクトップは完全一致を要求する。パスにバージョンは無く、機械可読の仕様も無い——対で出荷する以上、設計上（§0.2）。 |
 | API10 | Unsafe Consumption of APIs | **部分的**（従来：未対応） | 全外部クライアントにタイムアウトがあり、§1 の出力整合性ガードは本項目が LLM 応答に求める水準を超えている。リダイレクトは制限済み（API7）。応答サイズの上限は **Ollama 経路のみ**——平文 HTTP で接続先が利用者設定であり、意図した相手以外から応答が来得る唯一の経路だからで、ホストがコード固定の TLS 経路は意図的に触っていない。 |
 
-**この判定が覆っていないもの。** これはソースレビューであって動的試験ではない（リリースごとの動的証跡は Part C）。本レビューが挙げた未確認 3 件のうち 2 件は解消した：`reqwest` はクロスホストのリダイレクトで **`x-api-key` を除去しない**（crate の `remove_sensitive_headers` に対する実測。API7 の修正が鍵の漏出経路も同時に塞いだ理由がこれである）、ZAP はそれ以降の各リリースの出荷現物に対して実施しており、直近は v2.9.10（Windows）の 8 アラート・High 0 で、各アラートの根拠をその現物で実測している（C.4）。残る 1 件は未了：API3 は `/api/config` と鍵の存在確認で確かめたのであって、全ハンドラの応答項目を網羅したわけではない。
+**この判定が覆っていないもの。** これはソースレビューであって動的試験ではない（リリースごとの動的証跡は Part C）。本レビューが挙げた未確認 3 件のうち 2 件は解消した：`reqwest` はクロスホストのリダイレクトで **`x-api-key` を除去しない**（crate の `remove_sensitive_headers` に対する実測。API7 の修正が鍵の漏出経路も同時に塞いだ理由がこれである）、ZAP はそれ以降の各リリースの出荷現物に対して実施しており、直近は v2.9.11（Windows）の 8 アラート・High 0 で、各アラートの根拠をその現物で実測している（C.4）。残る 1 件は未了：API3 は `/api/config` と鍵の存在確認で確かめたのであって、全ハンドラの応答項目を網羅したわけではない。
 
 ---
 
@@ -1136,6 +1224,8 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 
 **v2.9.9 以降、リリースビルドは開発機ではなく CI で行う。** `.github/workflows/release-windows.yml` が上記 1〜5 を `windows-latest` ランナーで実行し、アップロード前に全現物へ `scripts/check-no-host-paths.sh` を掛ける。理由は §C.4 の v2.9.9 の記録にある——rustc は panic メッセージのために各クレートのソースパスをバイナリへ焼き込むため、開発機でのビルドはビルド者のアカウント名を出荷してしまい、`strip = true` でも `--remap-path-prefix` でも全部は消えない。開発目的のローカルビルドは従来どおりでよいが、検査と出荷の対象ではなくなった。
 
+**v2.9.11 以降、Windows のリリースは 2 回の CI の間で署名する。** `release-windows.yml` が上記のとおりビルドし、出荷しない MSI の中から取り出した実行ファイル 3 本を `to-sign/` に置く。これをオーナーの端末で署名し（鍵は Certum のクラウドにあり、ランナーからは届かない）、受け渡し専用の下書きリリースに置く。`release-windows-package.yml` がそれらからコンパイルせずに出荷用の MSI を組み、最後に MSI に署名する。単体の `xoksa-desktop.exe` には署名してはならない——Tauri は梱包するコピーに 3 バイトを刻むため、その前に付けた署名が壊れる。
+
 **検査するエンジンは、`webui-leptos/dist` が存在しないディレクトリから起動する。** `--web-dir` の既定はこの**相対パス**であり、`read_asset` はディスク上のファイルをバイナリの埋め込みより優先する——開発時の利便性のためだが、結果としてリポジトリ直下から起動したエンジンは自身の埋め込みではなく作業ツリーのフロントエンドを配信する。その状態での検査は現物に束縛されない：本リリースの最初の ZAP スキャンは、検査対象が CI 現物であるにもかかわらず古いローカルのフロントエンドを走査していたため破棄した。どのスキャンでも、`/` を取得して参照されている `xoksa-webui-<hash>` を現物の WASM と突き合わせ、束縛を確認すること。
 
 **検査をソースに束縛する。** ハッシュが示すのは*どのファイルを検査したか*であって、*どのソースから生まれたか*ではない。v2.6.8 のリリース作業で、この隙間が実際に 2 つの失敗として現れた。ソースをコミットする前にリリースを公開したため `gh release create --target main` が**コードを含まないコミット**にタグを打ったこと。そして検査の最中に依存の更新がマージされ、最初のビルドがマージ後のソースから再現できなくなったことである。以下の 6 項目でこれを塞ぐ。v2.7.0 以降の記録はすべてこれに従っている。
@@ -1147,6 +1237,7 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 5. **ビルドから公開までの間にベースが動いたら、作り直して再検査する。** 現物は 1 つのソースに束縛される。動いたソースは別のソースである。
 6. **release ブランチは削除しない。** Squash & Merge はブランチのコミットを畳んで `main` に新しい 1 個を作るため、記録が名指しするコミットは**そのブランチにしか残らない**——v2.9.8 時点の実測で、`5065da8`（v2.9.7）と `e8b973d`（v2.9.8）はいずれも `main` から到達不能で、`origin/release/v2.9.7` と `origin/release/v2.9.8` にのみ存在する。ブランチを消すと記録の参照先が消える。本リポジトリで `deleteBranchOnMerge` を無効にしているのはこのためである。
 7. **§C.4 の見出しには日付つきの事実だけを書き、可変の状態を書かない。**「未出荷」は、そうでなくなるまでは真で、変える仕掛けが無い。実際に v2.9.9 の記録はこれを載せたまま**12 分後にリリースが出て**、反対側（macOS）がそれを読んで未公開と信じ、公開物と一致しないソースから現物を作り直した——半日の損失。よって見出しには**いつ検査したか**と**いつ公開したか**——どちらも後から変わらない——を書く。**現在の**状態は 1 箇所（引継ぎ書）にだけ置き、追記ではなく上書きする。**公開は、§C.4 の見出しに公開日が入るまで終わっていない**（日英とも）。
+8. **公開によってしか確定しないことは、公開の後に、記録の正式な更新として書く。** 公開前に測れること——ソースコミット・CI の run ID・署名済み現物のハッシュ・検査結果・SBOM——は、公開の前にマージする（規則 2）。公開日時と、公開されたリリースでしか観測できないこと（ダウンロードした初回利用者が見る画面など）は、§C.4 以外を変えない PR で、公開の後に加える。この PR は各リリースの必須の工程であり、後追いの修正ではない。
 
 **リポジトリの引っ越しをまたぐ場合。** 本プロジェクトは、`main` の現在のツリーだけを新しいリポジトリとして公開し、**履歴は持ち込まない**計画である。§C.4 の記録が名指しするコミットも、それを保持する `release/*` ブランチも、履歴とともに元のリポジトリに残る（タグも同様である。タグは指し示すコミットと一緒にしか移動しない）。ここで記録する判断は、**引っ越し元を削除せず非公開のアーカイブとして残す**ことである。したがってそれらのコミットは引き続き到達可能であり、引っ越し前に書かれた記録が指すのは公開リポジトリではなく**このアーカイブ**である。規定 6 はアーカイブに対して効き続ける——release ブランチはそこで生き残らなければならない——また、引っ越し後に最初に書く §C.4 の記録には、どのリポジトリに束縛されているかを明記する。これにより、どの記録も自分のコミットの在り処が曖昧にならない。
 
@@ -1183,9 +1274,10 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 `release/*` ブランチは `Kozo2000/xoksa-dev` にしか存在しない。`Kozo2000/xoksa-dev` を**削除せず非公開のアーカイブとして
 残している**のは、まさにそれらを到達可能に保つためである（§C.1「リポジトリの
 引っ越しをまたぐ場合」）。記録中のタグの記述も同じ読み方をする——`v2.9.10` は
-アーカイブの `9d05cc7` を指し、ここにある同名のタグは本リポジトリ自身の最初の
-コミット（ツリーは同一）を指す。次のリリース以降に書く記録は、本リポジトリに
-束縛される。
+アーカイブの `b3ef8e1` を指し、ここにある同名のタグは本リポジトリ自身の最初の
+コミット `d61ab53` を指す。そのプログラムはアーカイブの `9d05cc7` と同一で、違いは
+引っ越しのために書いた文書（Markdown 4 ファイル）だけである。次のリリース以降に書く
+記録は、本リポジトリに束縛される。
 
 
 ### v2.2.3（2026-07-09 出荷）
@@ -1234,6 +1326,90 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 **§4.2 の重複——解消（全て挙動保存）。** 単一ソース化：#1 スコア調整行（10コピー→1 `adjusted_score_line`）／#3 `send_cloud_prompt`（3送信→1）／#5 `key_present_in_env_file`→`read_key_from_env_file`／#6 スコア不明ラベルを「情報なし/unavailable」に統一（utils を単一源）／#7 `colored_price_diff`／#8 `cloud_provider_rows`／#10 `send_chat_turn_dispatch`／#2 `group_thousands`（f64→整数変換は各呼出側が保持・表示専用）／#4 `parse_env_line`（＋`live_ollama_instances` は `load_env_map` を利用。除外条件は各自保持でクラスA値を材料化しない）／#9 `sanitize_symbol_result`（エラーを返し4つの報告サイトの文言を保持）／#11 演算子記号を `rule_operator_catalog` から／#12 `fundamental_value_lines`（revenue〜次期FYの値行。表示/LLMのヘッダは別ビューで各関数に残置）／#13 `cross_status`/`CrossLabels`／#14 `deviation_line`／#15 `symbol_of` 再利用／#16 `ChatTokenUsage::accumulate`／#17 `on_off`／#18 context.rs の前足比を `displayed_price_diff` 経由に。**真の重複でないと確認し据え置き：** #19——`fmt_num` と `fmt_currency_auto` は出力が異なる（記号なし4桁 vs 記号+カンマ2桁）。共有は `100.0` 閾値のみで、これは §1 の出力整合ガードも使うため、統合すると表示精度とセキュリティ閾値を誤って結合してしまう。別概念の下位部分も据え置き（非重複）：#11 の `parse_alert_condition` の演算子解析順・eval のセマンティクス、#18 の生バー(indicators.rs)・リロード差分(chat)の前足比計算。
 
 **現物依存項目は保留（出荷時に本節へ記録・C.4 の慣例通り）：** 現物別 SHA-256・出荷ハッシュへの VirusTotal（v2.7.0 同様、コード署名まで延期）・OWASP ZAP パッシブスキャン・OS別 SBOM 再生成は、tag→CI が凍結した現物に対して実測する。本記録は作業ツリー時点のソース級証跡であり、現物実測の代替ではない。
+
+### v2.9.12（Windows）— CI ビルド現物を 2026-10-17〜10-18 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／SCA／SBOM／ZAP／VirusTotal）
+
+**この版の理由。** v2.9.11 の出荷検査の最終段（記録を `main` に取り込むプルリクエスト（PR #22）の CI）で、エンジンが Excel の読み込みに使うライブラリ `calamine` 0.36.1 の内部の部品 `zip` 8.6.0 に、勧告 3 件が見つかった（Excel ファイルは中身が圧縮形式のため、`calamine` が `zip` を使う）。XOKSA は `zip` に直接依存しておらず、ZIP ファイルを作る機能も展開する機能も持たない。RUSTSEC-2026-0367（CVSS 7.3 High）、RUSTSEC-2026-0368（点数の公表なし）、RUSTSEC-2026-0369（CVSS 9.1 Critical）。3 件とも、ZIP をファイルシステムへ展開する機能（`extract`）の欠陥で、XOKSA はこの機能を使っていない。それでも、これらの欠陥を含む部品を出荷物に残さず、修正版の `zip` 9.0.4 に替える。上の v2.9.11 の記録は、2026-10-17 に例外を加えた経緯をそのまま残す。この版で例外を撤去した。
+
+**変えたこと。** `zip` 9 を受け入れる `calamine` の正式版はまだ無いため、エンジンは tafia/calamine のプルリクエスト #741 の `calamine` を、`[patch.crates-io]` で完全なコミット `d2ddf8837d301011011439708c8395310cee3906` に固定して使う。採る前に、0.36.1 からこのコミットまでの 11 コミット（14 ファイル）を審査した——`unsafe` は前後とも 0 件、`zip` 9.0 と `quick-xml` 0.42 のほかに新しい依存は無い、そのコミットの `calamine`・`quick-xml` 0.42.0・`zip` 9.0.4 に既知の勧告は無い（RustSec と GitHub の勧告）。`cargo audit` は git から取る部品を照合しないため、`calamine` は両方のデータベースで手作業で照合した。`zip` の勧告 3 件と、取り下げられた `zip` の例外を、`deny.toml`・`ci.yml`・`audit.yml`・`scripts/check.sh` から撤去し、唯一の git の取得元を `deny.toml` で名指しで許可した。Windows のリリースビルドは `--locked`。`zip` 9 を受け入れる `calamine` の正式版が crates.io に出て、同じ検査を通ったら、固定を外す。
+
+**ビルド来歴——GitHub Actions `Release build (Windows)` の run `39019806094`、ソースコミットは `v2.9.12-zip9` の `cb90df7`**、`rustc 1.98.1`（実行ファイル 3 本すべてから読み出した）。実行ファイルはオーナーの端末で署名し、下書きリリース `v2.9.12-signing` で受け渡した。出荷用のインストーラは、同じ `cb90df7` をチェックアウトした `Package signed installer (Windows)` の run `39024435561` が、コンパイルせずにそれらから組んだ。MSI には最後に署名した（§C.1）。
+
+**署名。** Certum Open Source Code Signing（クラウド）、シリアル `30e49e39125ad5e47056f4f08b867ef5`、拇印 `fe46d4e648938217c4255920b6cdf519a3836fe6`。MSI と実行ファイル 3 本は、いずれも Certum のタイムスタンプ付きで `Valid`——2026-10-17 に実測。
+
+**凍結した Windows 現物**（署名済み）：
+
+| 現物 | SHA-256 | サイズ |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.12-x64.msi`（インストーラ。下の 3 本を収める） | `d422cecc8b22b729943e99a1211d22d595e55d3c59fc54a6ad7dbfda5981df84` | 11,759,616 B |
+| `xoksa.exe`（エンジン） | `43099ce01fdd5b60207599ab65fb4d2b430a20c474e4cc59fc9b6a7cea6e7344` | 14,875,232 B |
+| `xoksa-desktop.exe`（接続シェル） | `2c6c4c070276ae0503582125240aef36920f4470f6a3e2d0b77e5df61220906b` | 9,640,032 B |
+| `xoksa-setup.exe`（設定アプリ） | `dbf1a7995135b16a79de3f77fff79b390e75a953f349a4f0cc0b795ee2ccfc41` | 8,425,056 B |
+| `xoksa-webui-29b39bbd85ec2e88_bg.wasm`（エンジンに埋め込むフロントエンド） | `95061a62f09a6103bbacd9bee6769dadc34a36c495582479681108b85f52fc1f` | 724,566 B |
+| `xoksa-manuals-2.9.12.zip`（マニュアル。`v2.9.12-zip9` の `cb90df7` から作成） | `a53fcd310b09baaf27148a85489c2e2baac29def3029cb0f1a4ef2d67c3b353f` | 19,029,048 B |
+
+**2026-10-17 の実測結果。**
+- **ペイロード同一性**：署名を外し PE チェックサムを 0 にすると、実行ファイル 3 本は CI の `to-sign/` とバイト単位で一致。MSI を管理用に展開すると、中身は署名済みの 3 本だけ。
+- **ビルドパスのゲート**：3 本と MSI のすべてで合格。
+- **AV レシピ**：エンジンの `.rsrc` 2,048 B・エントロピー 4.178、`.rdata` 5,198,848 B・5.882。デスクトップの `.rsrc` 32,768 B・3.898。設定アプリの `.rsrc` 32,768 B・3.900——いずれも v2.9.10 の数値から 0.01 以内。
+- **静的**：`scripts/check.sh` のゲート 15 本が緑・skipped 0・テスト 491 件。設定アプリの fmt・clippy も合格。`cargo audit` と `cargo deny` は `zip` の例外なしで合格。
+- **SCA**：`osv-scanner`——エンジン **0**。WASM の 4 件（`event-listener` 5.4.1 の unsound RUSTSEC-2026-0221 は v2.9.11 の記録のとおり到達不能、`paste`・`proc-macro-error2`・`xxhash-rust` は WASM に入らない）。デスクトップと設定アプリの 7 件——保守終了の `unic-*` 5 件は `urlpattern` 経由で出荷物に入る（保守終了の通知で脆弱性ではない）、`glib` と `proc-macro-error` は Windows のビルドに入らない。`zip` 9.0.4 が連れてくる `nix` 0.31.3 は Windows のビルドに入らない。
+- **SOT**：NVDA で、CSV・JSON・`/api/symbol/NVDA/summary` の 51 列中 50 列が一致。残る 1 列は実行時刻の `analyzed_at_timestamp` で、1〜2 秒の差。
+- **ランタイム**：`inspect.sh` 9/9。ヘッドレスの Edge で WASM の画面が組み上がる（select 3・input 4・button 7、日本語 UI）。
+- **フロントエンドの束縛**：`webui-leptos/dist` の無いフォルダから起動したエンジンの `/` は `xoksa-webui-29b39bbd85ec2e88` を参照し、現物の `.wasm` を配信する。
+- **ペネトレ**：入場上限は 255 件を止めた状態で `200`、256 件で `503`、解放後は `200`。起動フォルダに置いたおとりの `xoksa.env` は無視される（レポートは分析時刻を除いて対照の実行と一致し、正規の設定ファイルは変わらない）。パストラバーサル 6 種はすべて 404。2 つのクライアントには別々の `HttpOnly`／`SameSite=Strict` の `xoksa_sid`。5 MB のボディは 413。
+- **今回の変更の読み込み**：署名済みのエンジンに `ALIAS_CSV` で `.xlsx` を渡すと、ワークブックが 7203 に付けた名前を表示する。途中で切った `.xlsx` は、panic せずエラーで終わる。
+
+**SBOM——4 本を作り直した。** `cb90df7` の使い捨て `cargo auditable` ビルドから（抽出ではなく導出）：`xoksa-native-windows-x86_64` **225**、`xoksa-desktop-windows-x86_64` **196**、`xoksa-setup-windows-x86_64` **212**、`xoksa-webui-leptos` **188**。すべて CycloneDX 1.5 で、絶対パスは無い。v2.9.11 のインベントリと比べ、エンジンは `zip` 8.6.0 → 9.0.4、`quick-xml` 0.41.0 → 0.42.0。ほかの 3 本は本プロジェクト自身の版数だけが変わる。エンジンのインベントリは `calamine` を `pkg:cargo/calamine@0.36.1` と載せるが、エンジンが実際に含むのは tafia/calamine のコミット `d2ddf88` で、生成ツールは git の取得元をインベントリに載せない。出力は編集しない（§C.3）。使い捨てのエンジンに埋め込まれた 254 個の依存への `cargo audit bin`：0 件。
+
+**OWASP ZAP パッシブスキャン——2026-10-18、LAN 越しに `0.0.0.0:8787` で起動した署名済みのエンジンに対して——8 種類・High 0**。v2.9.11 と同じ 8 種類：`GET /login` の Anti-CSRF トークン欠如（Medium・1）、`xoksa-webui-29b39bbd8…` の SRI 属性欠如（1）、`/api/symbol/NVDA/summary` の Unix タイムスタンプの露見（3）、`POST /auth` の Cookie ポイズニング（1）、セッション管理レスポンス（3）、モダン Web アプリ（1）、localStorage（5）、疑わしいコメント（1）。タイムスタンプの件数は v2.9.11 では 4 件だった。理由は調べていない。2026-10-17 の 1 回目のスキャンは破棄した：ポート 8787 で動いていたのは、初回利用者の確認から動いたままだった v2.9.11 のエンジンで、アラートの対象の `xoksa-webui-a8866c04…` がそれを示していた。
+
+**VirusTotal**（署名済みの現物、2026-10-18）：MSI **0/63**、`xoksa.exe` **0/71**、`xoksa-desktop.exe` **0/71**、`xoksa-setup.exe` **0/71**。
+
+**運用上の注記。** ウィンドウを出さずに起動したエンジンには、ファイアウォールの許可を求める画面が見えない。Windows は新しい場所のプログラムにブロックの規則を記録し、オーナーがプライベートネットワークでの許可に変えるまで、LAN 越しのスキャンは接続できなかった。
+
+**未実測：** MSI のアンインストールと、ランタイムのプロンプトインジェクション（H1）。理由は v2.9.10 のとおり。公開されたリリースで初回利用者が見る画面は、公開の後に記録する（規則 8）。
+
+### v2.9.11（Windows）— CI ビルド現物を 2026-10-16 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／ZAP／SCA／SBOM／VirusTotal）。**2026-10-17 14:55 JST 公開**（タグ `v2.9.11` は `ef3faeb`）
+
+本リポジトリ `Kozo2000/XOKSA` に束縛された最初の記録であり、以下で名指すコミットはすべてここにある。署名した最初の Windows リリースでもある。
+
+**ビルドの出所 — GitHub Actions `Release build (Windows)` run `38878871362`、ソースコミット `ef3faeb`（`main`、#13 の squash マージ）**、`rustc 1.98.1`（実行ファイル 3 本から読み出した値）。その後、実行ファイルをオーナーの端末で署名し、`Package signed installer (Windows)` run `38887039339` がそれらからコンパイルせずに出荷用のインストーラを組み、最後に MSI に署名した（§C.1）。この run は `c099c26`（#14。このワークフロー自体の変更だけ）をチェックアウトしているが、何もコンパイルしない——全現物のプログラムは `ef3faeb` のものである。
+
+**署名。** Certum Open Source Code Signing（クラウド版）、シリアル `30e49e39125ad5e47056f4f08b867ef5`、拇印 `fe46d4e648938217c4255920b6cdf519a3836fe6`、有効期間 2026-10-15 18:49 〜 2027-10-15 18:49 JST。MSI と実行ファイル 3 本は、いずれもタイムスタンプ付きで `Valid` と検証される——検査時に実測し、2026-10-17 の公開前にも再確認した。
+
+**凍結した Windows 現物**（署名済み）：
+
+| 現物 | SHA-256 | サイズ |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.11-x64.msi`（インストーラ。下の 3 本を内包） | `ca05b4ce556204ae30a6a2a89efec09b9a31a2ccc710d45c89bb0c39eeff54e4` | 11,759,616 B |
+| `xoksa.exe`（エンジン） | `3e7942a2e583ef559f0c7a164d0dc33b36c697c9b89a9767c26268039392738d` | 14,870,640 B |
+| `xoksa-desktop.exe`（接続シェル） | `f0f40d307ea6eeaf507e36c1c923283e47192603af21bee99bb2549aaac31ba4` | 9,640,048 B |
+| `xoksa-setup.exe`（設定アプリ） | `8142e3221d012f7807f130aea824fe5d3837385afade87af8e8880ba5a468a2b` | 8,425,072 B |
+| `xoksa-webui-a8866c04cbf7c7b9_bg.wasm`（エンジンが内蔵するフロントエンド） | `f3d6faddc54121bddfd46b9869c1413f26312a19e885ec72121d7cc6385be85c` | 724,574 B |
+| `xoksa-manuals-2.9.11.zip`（マニュアル。`v2.9.11-fetch-signed` の `d4f8eb8` から作成） | `3a3bcf5cdc4ac65ebeb59d364070b586a188319d6d76fb9de5de322853c2e895` | 19,008,205 B |
+
+**2026-10-16 に実測した結果**（引継ぎ書の記載による）：出所、CI の記録とのハッシュ照合、署名、ペイロード同一性（署名を外すと実行ファイルは CI のものと一致し、MSI の中身は署名済みの実行ファイルと一致）、ビルドパスのゲート、AV 対策（`.rsrc`／`.rdata` は v2.9.10 と同等）、**静的**——15 ゲート緑・試験 491 件、**SOT**——3 経路で 51 列中 50 が一致し、残る 1 つは実行時刻の 1 秒差、画面の束縛、**ランタイム** 9/9、**ペネトレ**——接続受入の上限は保留 255 本で `200`、256 本で `503`、おとりの `xoksa.env` は読まない、**SCA**——出荷物の脆弱性 0、持ち越しの所見 2 件（未使用の `native-tls`、静的ゲート集合の外にある設定アプリ）は再確認して不変。
+
+**画面の束縛を 2026-10-17 に再実測。** `webui-leptos/dist` を持たない `signed\` から起動したエンジンの `/` は `xoksa-webui-a8866c04cbf7c7b9` を参照し、配信された `.wasm` のハッシュは `f3d6fadd…` で、現物自身のものと一致する。
+
+**OWASP ZAP パッシブスキャン — 2026-10-17、`0.0.0.0:8787` に bind した署名済みエンジンに対し LAN 経由 — 8 種・High 0。** 種類は v2.9.8〜v2.9.10 と同じ 8 つである：`GET /login` の Anti-CSRF トークン欠如（Medium・1）、`xoksa-webui-a8866c04…` 資産の SRI 属性欠如（1）、`/api/symbol/NVDA/summary` の Unix タイムスタンプ露見（4）、`POST /auth` の Cookie ポイズニング（1）、セッション管理レスポンス（3）、モダン Web アプリケーション（1）、localStorage（5）、疑わしいコメント（1）。エンジンが配信する HTML は 3 つのサブリソースすべてに `integrity` を持つので、SRI のアラートは今回も、HTML 用のルールをバイナリの URL に当てたものである。確認したタイムスタンプの 1 件は `analyzed_at_timestamp`（`1792214849`、実行時刻）で、4 件とも summary の応答にあり、その時刻は市場と分析の時刻（クラス C）である。確認した localStorage の 1 件は `xoksa.tickers` である。ZAP はこのアラートを URL とキーの組ごとに 1 回だけ出すので、件数は閲覧中にどのキーが書かれたかで決まる——6 から 5 に動いたのはこのためである。
+
+**SCA の補足。** `xxhash-rust` に低深刻度の勧告がある。ビルド時だけの依存で、出荷物には入っていない。
+
+**検査後に見つかった勧告 — 2026-10-17。** 上の「脆弱性 0」は 2026-10-16 の結果であり、そのとき読んだ勧告データベース（最終更新 2026-10-16 15:29 JST）には、以下の項目はまだ無かった。2026-10-17、`cargo audit` と `cargo deny` は `zip` 8.6.0 に対する勧告 3 件を報告する。出荷エンジンは `calamine` 0.36.1 を通じてこれを持つ：RUSTSEC-2026-0367・-0368・-0369。3 件とも、アーカイブをファイルシステムへ展開する機能（`ZipArchive::extract`、`ZipStreamReader::extract`）の欠陥である。XOKSA は `zip` を直接使わず、`calamine` はブックを `ZipArchive::new` で開いて中身をメモリ上で読むだけで、`extract` を呼ばない（`calamine` 0.36.1 のソースを検索して確認）。したがってこの欠陥は出荷エンジンでは到達しない。修正は `zip` 9.0.0 以上だが、これを受け入れる `calamine` はまだ無いため、3 件をこの理由とともに `deny.toml` と `cargo audit` の各ステップで例外とし、`calamine` が `zip` 9 に移ったら外す。2026-10-16 に記録した `zip` 8.x の全版 yank は、この勧告の前触れだった。
+
+**SBOM — 4 本を再生成した。** 同一ソースの使い捨て `cargo auditable` ビルドから作った（抽出ではなく導出——CI は `auditable` でビルドしていない）：`xoksa-native-windows-x86_64` は library **225** 件、`xoksa-desktop-windows-x86_64` **196**、`xoksa-setup-windows-x86_64` **212**、`xoksa-webui-leptos` **188**。いずれも CycloneDX 1.5 で、絶対パスを含まない。v2.9.10 のインベントリと比べて、エンジンは `clap` 4.6.1 → 4.6.7（`clap_builder` 4.6.0 → 4.6.7）、`futures` 系 0.3.32 → 0.3.34、`rustls` 0.23.45 → 0.23.46、`serde_json` 1.0.150 → 1.0.154 が動いた。残る 3 本は本プロジェクト自身の版数だけが変わった。v2.9.10 の WASM のインベントリは、読み取ったファイルを `/private/tmp/sbom2910/xoksa-webui/Cargo.lock`（macOS の一時パス）と記していたが、再生成したものには無い。macOS エンジンのインベントリは macOS のビルドに委ねる。
+
+**VirusTotal**（署名済みの現物）：MSI **0/62**、`xoksa.exe` **0/71**、`xoksa-desktop.exe` **0/71**、`xoksa-setup.exe` **0/55**。
+
+**初回利用者が見る画面 — 2026-10-17、オーナーの普段使いの PC で実測**（XOKSA は事前にアンインストールし、設定は保持）。公開した MSI をブラウザでダウンロードした。SmartScreen は今も全画面で遮断する。「詳細情報」には発行元として証明書の主体名が表示される（v2.9.10 では不明な発行元だった）。ユーザーアカウント制御は出ず、インストールは成功した。v2.9.10 のクリーンな Windows 10 VM とは環境が違うため、ユーザーアカウント制御が出なかったことは観測どおりに記録し、署名によるものとはしない。SmartScreen の遮断はレピュテーションによるもので、即時に付与されるのではなく証明書に積み上がる。この MSI は 2026-10-17 に、誤検知として Microsoft Security Intelligence に提出した。
+
+**運用上の注記。** `--private` を付けずに起動した `serve` は、起動したフォルダの下の `logs\` に診断ログを書く。したがって `signed\` から検査すると、現物の隣に `logs\` フォルダが残る。
+
+**未実測：** MSI のアンインストールと、ランタイムのプロンプトインジェクション（H1）。理由は v2.9.10 と同じである。
+
+**2026-10-17 14:55 JST 公開**（タグ `v2.9.11` は `ef3faeb`）。
 
 ### v2.9.10（macOS）— CI ビルド現物を 2026-10-02 検査・署名・公証 — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／SCA／SBOM／署名・公証／VirusTotal／ZAP）。**2026-10-03 07:09 JST 公開**（タグ `v2.9.10` は `b3ef8e1`）
 

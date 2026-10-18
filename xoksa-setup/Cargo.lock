@@ -4576,7 +4576,7 @@ dependencies = [
 
 [[package]]
 name = "xoksa-setup"
-version = "2.9.11"
+version = "2.9.12"
 dependencies = [
  "serde",
  "serde_json",

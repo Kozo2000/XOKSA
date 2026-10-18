@@ -127,16 +127,16 @@ jobs:
       - name: Build the WASM frontend (trunk)
         shell: bash
         working-directory: webui-leptos
-        run: trunk build --release
+        run: trunk build --release --locked
 
       - name: Build the engine
         shell: bash
-        run: cargo build --release --bin xoksa
+        run: cargo build --release --locked --bin xoksa
 
       - name: Build the settings app
         shell: bash
         working-directory: xoksa-setup
-        run: cargo build --release
+        run: cargo build --release --locked
 
       # Stages BOTH sidecars and refuses to stage one whose version does not
       # match Cargo.toml, so a missed rebuild fails here rather than shipping.
@@ -147,7 +147,7 @@ jobs:
       - name: Build the installer
         shell: bash
         working-directory: xoksa-desktop
-        run: cargo tauri build --bundles msi
+        run: cargo tauri build --bundles msi -- --locked
 
       # One MSI, one location (target/release/XOKSA-<version>-x64.msi). It is not
       # the shipped installer: release-windows-package.yml packages that one from

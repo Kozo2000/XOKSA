@@ -4300,7 +4300,7 @@ dependencies = [
 
 [[package]]
 name = "xoksa-desktop"
-version = "2.9.11"
+version = "2.9.12"
 dependencies = [
  "serde",
  "serde_json",
