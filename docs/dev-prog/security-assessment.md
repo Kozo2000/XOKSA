@@ -329,7 +329,7 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 
 **Binary-bound items pending (recorded at ship-time, per this C.4 convention):** per-artifact SHA-256, VirusTotal on the shipped hashes (deferred until code signing, as for v2.7.0), the OWASP ZAP passive scan, and the per-OS SBOM regeneration are measured at the tag/CI ship step against the frozen binary. This record is the source-level evidence at working-tree state and does not substitute for the on-artifact measurement.
 
-### v2.9.12 (macOS) — inspected 2026-10-20 on the CI-built artifacts, signed and notarized — PASS (static, SOT, runtime, penetration, payload identity, SCA, SBOM, signing/notarization); VirusTotal and ZAP pending; not yet published
+### v2.9.12 (macOS) — inspected 2026-10-20 on the CI-built artifacts, signed and notarized — PASS (static, SOT, runtime, penetration, payload identity, SCA, SBOM, signing/notarization, ZAP); VirusTotal pending; not yet published
 
 The macOS half of 2.9.12. The Windows half shipped on 2026-10-18 (record above); this is the catch-up build, and §1.3 of the handover requires both to come from the same `main`.
 
@@ -365,7 +365,13 @@ The macOS half of 2.9.12. The Windows half shipped on 2026-10-18 (record above);
 
 **SBOM — regenerated, and it shows the fix reached this artifact too.** `sbom/xoksa-native-macos-arm64.cdx.json`, CycloneDX 1.5 via `syft`, read from the throwaway `cargo auditable` build in a neutral directory: **222 library components** (221 at v2.9.10, the last time this inventory was generated). Compared component by component against that inventory, the differences are this project's own crate (2.9.10 → 2.9.12), **`zip` 8.6.0 → 9.0.4** — the three advisories this release exists to remove, now confirmed absent from the macOS artifact as well — `quick-xml` 0.41.0 → 0.42.0 from the pinned `calamine`, the routine bumps between the two versions, and **`nix` 0.31.3, which is new**. That last one is the measured confirmation of what the Windows record states from the other side: `zip` 9.0.4 pulls `nix` on Unix and not on Windows, which is why the two platforms' inventories differ by that component and why per-OS SBOMs are published rather than one.
 
-**Pending.** VirusTotal on the shipped hashes and the OWASP ZAP passive scan are the operator's steps and are not yet done. The macOS half is **not yet published** — when the DMG is added to the `v2.9.12` release, this heading gains the publication date, per §C.1 rule 7 and rule 8.
+**OWASP ZAP passive scan — 2026-10-20, over the LAN against the signed engine bound to `0.0.0.0:18787` — 8 alert types, 0 High**, the same eight as v2.9.11 and the Windows half of this release: Anti-CSRF token missing on `GET /login` (Medium, 1), SRI attribute missing on the `xoksa-webui-e9855d865d81e5bf` asset (1), Unix timestamp disclosure on `/api/symbol/NVDA/summary` (4), cookie poisoning on `POST /auth` (1), session-management response (3), modern web application (1), localStorage (5), suspicious comments (1). **The run is bound to this artifact:** the SRI alert names `xoksa-webui-e9855d86…`, the frontend this engine embeds and serves, the same one the artifact table records. The engine was reached on port 18787 rather than the usual 8787 because an installed v2.9.10 was still serving 8787 on this machine; the first browser reading showed that older engine's version, which is what the port change settled.
+
+The two alerts that are not Info were re-measured on this artifact rather than carried over. **Anti-CSRF:** a `POST /auth` carrying a wrong token answers **401** and sets no `xoksa_auth`; an empty token likewise **401**; only the correct token answers **303** with two cookies. The control on that form is the 256-bit token itself, so a form token would add nothing an attacker could not already fail to guess. **SRI:** the HTML this engine actually serves (1,463 B) carries `integrity="sha384-…"` on **all three** of its three subresource references — measured — so the alert is once more an HTML passive rule applied to a binary URL.
+
+The four timestamp instances are `analyzed_at_timestamp`, `bar_timestamp`, `market_data_latest_timestamp` and `timestamp` — the analysis run time and market-data times, Class C. The response carries exactly those four numeric timestamp fields and no others, measured, so four instances is the complete set; the Windows half reported 3 two days earlier and v2.9.11 reported 4. Since both halves are the same program (proved above), the variation is in how many of them a given scan observed, not in what the endpoint returns — which is as far as this answers the question the Windows record left open.
+
+**Pending.** VirusTotal on the shipped hashes is the operator's step and is not yet done — the service was unreachable when it was attempted on 2026-10-20. The macOS half is **not yet published** — when the DMG is added to the `v2.9.12` release, this heading gains the publication date, per §C.1 rule 7 and rule 8.
 
 ### v2.9.12 (Windows) — inspected 2026-10-17 to 2026-10-18 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, SCA, SBOM, ZAP, VirusTotal); **published 2026-10-18 20:14 JST** (tag `v2.9.12` at `cb90df7`)
 
@@ -1369,7 +1375,7 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 
 **現物依存項目は保留（出荷時に本節へ記録・C.4 の慣例通り）：** 現物別 SHA-256・出荷ハッシュへの VirusTotal（v2.7.0 同様、コード署名まで延期）・OWASP ZAP パッシブスキャン・OS別 SBOM 再生成は、tag→CI が凍結した現物に対して実測する。本記録は作業ツリー時点のソース級証跡であり、現物実測の代替ではない。
 
-### v2.9.12（macOS）— CI ビルド現物を 2026-10-20 検査・署名・公証 — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／SCA／SBOM／署名・公証）。VirusTotal と ZAP は未実施、未公開
+### v2.9.12（macOS）— CI ビルド現物を 2026-10-20 検査・署名・公証 — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／SCA／SBOM／署名・公証／ZAP）。VirusTotal は未実施、未公開
 
 2.9.12 の macOS 側。Windows 側は 2026-10-18 に出荷済み（上記の記録）で、これはその追随ビルドである。引継ぎ書 §1.3 は両 OS を同じ `main` から作ることを求める。
 
@@ -1405,7 +1411,13 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 
 **SBOM — 再生成し、修正がこの現物にも届いていることを示した。** `sbom/xoksa-native-macos-arm64.cdx.json`、`syft` による CycloneDX 1.5、中立ディレクトリに置いた使い捨ての `cargo auditable` ビルドから読み取り：**library 222 件**（このインベントリを最後に生成した v2.9.10 では 221 件）。そのインベントリとコンポーネント単位で比較すると、差は本プロジェクト自身のクレート（2.9.10 → 2.9.12）、**`zip` 8.6.0 → 9.0.4**——この版が存在する理由である勧告 3 件が、macOS の現物からも消えていることの確認——固定した `calamine` に伴う `quick-xml` 0.41.0 → 0.42.0、2 版ぶんの通常の更新、そして**新規の `nix` 0.31.3** である。最後の 1 件は、Windows の記録が反対側から述べていることの実測による裏づけになる：`zip` 9.0.4 は Unix で `nix` を連れてくるが Windows では連れてこない。両プラットフォームのインベントリがこのコンポーネントで食い違う理由であり、SBOM を 1 本ではなく OS ごとに公開している理由でもある。
 
-**未了。** 出荷ハッシュに対する VirusTotal と OWASP ZAP のパッシブスキャンは操作者の作業で、まだ実施していない。macOS 側は**未公開**で、`v2.9.12` のリリースへ DMG を追加した時点で、§C.1 の規則 7・規則 8 に従い、この見出しに公開日時を加える。
+**OWASP ZAP パッシブスキャン — 2026-10-20、LAN 越しに `0.0.0.0:18787` へ bind した署名済みエンジンに対して — 警告 8 種・High 0。** v2.9.11 および本版の Windows 側と同じ 8 種である：`GET /login` の Anti-CSRF トークン欠如（Medium・1）、`xoksa-webui-e9855d865d81e5bf` に対する SRI 属性欠如（1）、`/api/symbol/NVDA/summary` の Unix タイムスタンプ露見（4）、`POST /auth` の Cookie ポイズニング（1）、セッション管理レスポンスの特定（3）、モダン Web アプリケーション（1）、localStorage（5）、疑わしいコメント（1）。**このスキャンはこの現物に束縛されている**——SRI の警告が名指しするのは `xoksa-webui-e9855d86…` で、このエンジンが埋め込んで配信するフロントエンド、すなわち現物表に記載したものと同じである。接続先が通常の 8787 ではなく 18787 なのは、この機体で 8787 をインストール済みの v2.9.10 が掴んだままだったためで、ブラウザが最初に表示した版数はその旧エンジンの応答であった。ポートを分けたことで解消している。
+
+Info でない 2 件は、引き写さずこの現物に対して測り直した。**Anti-CSRF：** 誤ったトークンを載せた `POST /auth` は **401** を返し `xoksa_auth` を設定しない。空のトークンも同じく **401**。正しいトークンのときだけ **303** と cookie 2 本を返す。このフォームを守っているのは 256bit のトークンそのものであり、フォームトークンを足しても、攻撃者が当てられない秘密が 1 つ増えるわけではない。**SRI：** このエンジンが実際に配信する HTML（1,463 B）は、3 つのサブリソース参照**すべて**に `integrity="sha384-…"` を持つ（実測）。したがってこの警告は、またしても HTML 用のパッシブ規則をバイナリ URL に適用したものである。
+
+タイムスタンプ 4 件は `analyzed_at_timestamp`・`bar_timestamp`・`market_data_latest_timestamp`・`timestamp` で、分析の実行時刻と市場データの時刻（クラス C）である。この応答が持つ数値タイムスタンプはこの 4 つだけで、他に無い（実測）。よって 4 件が全数である。2 日前の Windows 側は 3 件、v2.9.11 は 4 件だった。両者は同じプログラムである（前述の実測）から、違いはエンドポイントの応答ではなくスキャンが何件観測したかにある——Windows の記録が未検討として残した問いに対して、ここで言えるのはここまでである。
+
+**未了。** 出荷ハッシュに対する VirusTotal は操作者の作業で、まだ実施していない——2026-10-20 に試みた時点でサービスに到達できなかった。macOS 側は**未公開**で、`v2.9.12` のリリースへ DMG を追加した時点で、§C.1 の規則 7・規則 8 に従い、この見出しに公開日時を加える。
 
 ### v2.9.12（Windows）— CI ビルド現物を 2026-10-17〜10-18 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／SCA／SBOM／ZAP／VirusTotal）。**2026-10-18 20:14 JST 公開**（タグ `v2.9.12` は `cb90df7`）
 
