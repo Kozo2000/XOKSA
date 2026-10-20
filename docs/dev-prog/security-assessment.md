@@ -329,6 +329,44 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 
 **Binary-bound items pending (recorded at ship-time, per this C.4 convention):** per-artifact SHA-256, VirusTotal on the shipped hashes (deferred until code signing, as for v2.7.0), the OWASP ZAP passive scan, and the per-OS SBOM regeneration are measured at the tag/CI ship step against the frozen binary. This record is the source-level evidence at working-tree state and does not substitute for the on-artifact measurement.
 
+### v2.9.12 (macOS) — inspected 2026-10-20 on the CI-built artifacts, signed and notarized — PASS (static, SOT, runtime, penetration, payload identity, SCA, SBOM, signing/notarization); VirusTotal and ZAP pending; not yet published
+
+The macOS half of 2.9.12. The Windows half shipped on 2026-10-18 (record above); this is the catch-up build, and §1.3 of the handover requires both to come from the same `main`.
+
+**Same program as the published Windows artifacts.** The Windows release was built from `cb90df7` on `v2.9.12-zip9`; this build is from `04730d8` on `main`, which is that branch merged plus the record PRs. Measured: `git diff cb90df7 04730d8` over `src/`, `webui-leptos/`, `xoksa-desktop/src/`, `xoksa-setup/src/`, `xoksa-paths/`, every `Cargo.toml` / `Cargo.lock` and both `tauri.conf.json` is **empty**. The six files that differ are `CHANGELOG.md`, this document and the four Windows/WASM SBOMs — none of them compiled.
+
+**Build provenance — GitHub Actions `Release build (macOS)` run `39393528636`, workflow `.github/workflows/release-macos.yml`, runner `macos-14`, source commit `04730d8` on `main`.** Toolchain pinned by `rust-toolchain.toml` (1.98.1). Wall-clock 19 minutes. First macOS release build in this repository (`Kozo2000/XOKSA`); the earlier macOS releases were built in the archive repository.
+
+**Frozen macOS artifacts** (signed, notarized, stapled; every one verified against the CI-published `SHA256SUMS` before signing — 5/5 OK):
+
+| Artifact | SHA-256 | Size |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.12-arm64.dmg` (download) | `7099ad15a995fb5b3cc7d7ff1f66fddec94061f4153961aa4fc2c63cb5354889` | 11,719,466 B |
+| `XOKSA.app/Contents/MacOS/xoksa` (engine) | `495cb576d224af27c21166bbca3425b0b65b172092127376514a6e93f470d170` (unsigned CI original) | 11,904,304 B |
+| `XOKSA.app/Contents/MacOS/xoksa-desktop` (shell) | `49b36c084f4e3f074b8b937c284efa44f4812215f49a54e111a2732adfa3b835` (unsigned CI original) | 6,278,496 B |
+| `XOKSA.app/Contents/MacOS/xoksa-setup` (settings app) | `1d3d8862cf979c300eadf33a27b0a2ef2548cfe5780a00043f4c2f09285a8c01` (unsigned CI original) | 5,850,272 B |
+| `xoksa-webui-e9855d865d81e5bf_bg.wasm` (frontend embedded in the engine) | `004089644b10c271317384dfb0da56e105c2595cc98a1efdce553631841df0c5` | — |
+
+**Signing pipeline — the CI artifact is the input, not a rebuild.** The three inner binaries and the bundle were signed `Developer ID Application: Kohzoh Tsuchiya (463YK5WF6H)` with the hardened runtime and a secure timestamp, notarized (submission `e4e1bec1-3458-43e6-b576-1d1b3ea3a074`, **Accepted**), and stapled; the DMG was built locally from the stapled `.app` with an `/Applications` symlink, then signed, notarized (`a67fba74-d7da-4485-b909-3de95600b4f2`, **Accepted**) and stapled in turn. Gatekeeper reports **`source=Notarized Developer ID`** for both, and the DMG still reports it after being copied into `dist/`. Signing is done outside iCloud — the repository clone for this release lives at `~/xoksa-build/XOKSA`, not under `~/Documents`, because an iCloud-managed copy carries `com.apple.fileprovider` attributes that `codesign` refuses and that reappear if cleared in place.
+
+**Payload identity — one byte, and it is the byte signing has to move.** With signatures stripped, each binary differs from its CI original in **exactly one byte**, in `__LINKEDIT`'s `vmsize`, grown by one 16 KiB page to hold the signature (`0x28000`→`0x2c000` engine, `0x18000`→`0x1c000` shell, `0x14000`→`0x18000` settings app). Sizes are unchanged and code and data are byte-identical to what CI produced.
+
+**Static — PASS.** `scripts/check.sh` at `04730d8`: fifteen gates green, **491 tests**, zero failures. *A fresh clone fails three of those gates until the tree is prepared, and that is not a defect:* `include_dir!` needs `webui-leptos/dist`, and the desktop build script needs the staged sidecars, both of which are build output and not in the repository. The §C.1 recipe order (trunk build → engine → settings app → `bundle-engine.sh`) produces them; `bundle-engine.sh` confirmed both sidecars report 2.9.12 before staging.
+
+**SOT — PASS.** csv == json == api output equivalence (AAPL: `latest_observed_price` 342.94 and `final_score` 7.0 identical across `--save-technical-log --stdout-log --log-format csv`, `--log-format json`, and `/api/symbol/AAPL/summary`).
+
+**Runtime — PASS, 9/9.** `scripts/inspect.sh` against the signed engine: embedded UI 200, CSP header present, cross-origin POST 403, oversized body 413, `text/plain` POST 415, same-origin POST 200, CLI analysis produces a report, backtest API returns a result, no identifying build path.
+
+**Frontend binding — PASS.** The engine was started from a directory with no `webui-leptos/dist`, and `/` references `xoksa-webui-e9855d865d81e5bf`; the served `.wasm` hashes to `004089644b…`, identical to the artifact's own WASM.
+
+**Penetration — PASS on everything measured, with one item not exercised.** Path traversal: four encodings, all 404. Method override and wrong method: 422 / 405. `/api/config` carries no secret. Cross-origin SSE: 403. Session isolation: two clients receive distinct 32-hex `xoksa_sid` values. `--private`: no `logs/` directory is created and the engine prints `Diagnostics log: disabled (private mode)`. **Not exercised: the capacity shed (K3)** — 300 concurrent `/api/health` requests were all served `200`, because the handler returns far too quickly for 256 to be in flight at once. The cap is present and is 256; the shed itself was measured during development on a build with the cap lowered to 2, as recorded at v2.9.10.
+
+**SCA — PASS.** `cargo audit bin` against a throwaway `cargo auditable` build of the same source: **246 dependencies embedded, 0 vulnerabilities**. `osv-scanner --lockfile Cargo.lock`: 339 packages, **no issues found**. `cargo audit` and `cargo deny` are green on both workspaces in the static gate above — with no advisory exceptions, the three `zip` advisories having been removed from the configuration in this release.
+
+**SBOM — regenerated, and it shows the fix reached this artifact too.** `sbom/xoksa-native-macos-arm64.cdx.json`, CycloneDX 1.5 via `syft`, read from the throwaway `cargo auditable` build in a neutral directory: **222 library components** (221 at v2.9.10, the last time this inventory was generated). Compared component by component against that inventory, the differences are this project's own crate (2.9.10 → 2.9.12), **`zip` 8.6.0 → 9.0.4** — the three advisories this release exists to remove, now confirmed absent from the macOS artifact as well — `quick-xml` 0.41.0 → 0.42.0 from the pinned `calamine`, the routine bumps between the two versions, and **`nix` 0.31.3, which is new**. That last one is the measured confirmation of what the Windows record states from the other side: `zip` 9.0.4 pulls `nix` on Unix and not on Windows, which is why the two platforms' inventories differ by that component and why per-OS SBOMs are published rather than one.
+
+**Pending.** VirusTotal on the shipped hashes and the OWASP ZAP passive scan are the operator's steps and are not yet done. The macOS half is **not yet published** — when the DMG is added to the `v2.9.12` release, this heading gains the publication date, per §C.1 rule 7 and rule 8.
+
 ### v2.9.12 (Windows) — inspected 2026-10-17 to 2026-10-18 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, SCA, SBOM, ZAP, VirusTotal); **published 2026-10-18 20:14 JST** (tag `v2.9.12` at `cb90df7`)
 
 **Why this release exists.** In the final stage of the v2.9.11 shipping inspection — the CI of the pull request that brings the record into `main` (PR #22) — three advisories were found against `zip` 8.6.0, a component inside `calamine` 0.36.1, the library the engine reads Excel files with (an Excel file is a compressed archive inside): RUSTSEC-2026-0367 (CVSS 7.3 High), RUSTSEC-2026-0368 (no score published) and RUSTSEC-2026-0369 (CVSS 9.1 Critical). XOKSA does not depend on `zip` directly and has no feature that creates or extracts ZIP files. All three are in extracting an archive to the filesystem (`extract`), which XOKSA does not use. Even so, a component with these flaws is not left in a shipped artifact: it is replaced with the fixed `zip` 9.0.4. The v2.9.11 record above keeps its account of the exceptions added on 2026-10-17; this release removes them.
@@ -1330,6 +1368,44 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 **§4.2 の重複——解消（全て挙動保存）。** 単一ソース化：#1 スコア調整行（10コピー→1 `adjusted_score_line`）／#3 `send_cloud_prompt`（3送信→1）／#5 `key_present_in_env_file`→`read_key_from_env_file`／#6 スコア不明ラベルを「情報なし/unavailable」に統一（utils を単一源）／#7 `colored_price_diff`／#8 `cloud_provider_rows`／#10 `send_chat_turn_dispatch`／#2 `group_thousands`（f64→整数変換は各呼出側が保持・表示専用）／#4 `parse_env_line`（＋`live_ollama_instances` は `load_env_map` を利用。除外条件は各自保持でクラスA値を材料化しない）／#9 `sanitize_symbol_result`（エラーを返し4つの報告サイトの文言を保持）／#11 演算子記号を `rule_operator_catalog` から／#12 `fundamental_value_lines`（revenue〜次期FYの値行。表示/LLMのヘッダは別ビューで各関数に残置）／#13 `cross_status`/`CrossLabels`／#14 `deviation_line`／#15 `symbol_of` 再利用／#16 `ChatTokenUsage::accumulate`／#17 `on_off`／#18 context.rs の前足比を `displayed_price_diff` 経由に。**真の重複でないと確認し据え置き：** #19——`fmt_num` と `fmt_currency_auto` は出力が異なる（記号なし4桁 vs 記号+カンマ2桁）。共有は `100.0` 閾値のみで、これは §1 の出力整合ガードも使うため、統合すると表示精度とセキュリティ閾値を誤って結合してしまう。別概念の下位部分も据え置き（非重複）：#11 の `parse_alert_condition` の演算子解析順・eval のセマンティクス、#18 の生バー(indicators.rs)・リロード差分(chat)の前足比計算。
 
 **現物依存項目は保留（出荷時に本節へ記録・C.4 の慣例通り）：** 現物別 SHA-256・出荷ハッシュへの VirusTotal（v2.7.0 同様、コード署名まで延期）・OWASP ZAP パッシブスキャン・OS別 SBOM 再生成は、tag→CI が凍結した現物に対して実測する。本記録は作業ツリー時点のソース級証跡であり、現物実測の代替ではない。
+
+### v2.9.12（macOS）— CI ビルド現物を 2026-10-20 検査・署名・公証 — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／SCA／SBOM／署名・公証）。VirusTotal と ZAP は未実施、未公開
+
+2.9.12 の macOS 側。Windows 側は 2026-10-18 に出荷済み（上記の記録）で、これはその追随ビルドである。引継ぎ書 §1.3 は両 OS を同じ `main` から作ることを求める。
+
+**公開済みの Windows 現物とプログラムが同一である。** Windows のリリースは `v2.9.12-zip9` の `cb90df7` から、このビルドは `main` の `04730d8` から作った。後者は前者をマージし、記録の PR を重ねたものである。実測：`git diff cb90df7 04730d8` を `src/`・`webui-leptos/`・`xoksa-desktop/src/`・`xoksa-setup/src/`・`xoksa-paths/`・すべての `Cargo.toml`／`Cargo.lock`・両方の `tauri.conf.json` に対して取ると**空**。差がある 6 ファイルは `CHANGELOG.md`・本書・Windows と WASM の SBOM 4 本で、いずれもコンパイルされない。
+
+**ビルドの出所 — GitHub Actions `Release build (macOS)` run `39393528636`、ワークフロー `.github/workflows/release-macos.yml`、ランナー `macos-14`、ソースコミット `04730d8`（`main`）。** ツールチェーンは `rust-toolchain.toml` の固定（1.98.1）。所要 19 分。本リポジトリ（`Kozo2000/XOKSA`）での macOS リリースビルドは今回が初回で、それ以前の macOS リリースはアーカイブ側のリポジトリで作られている。
+
+**凍結した macOS 現物**（署名・公証・staple 済み。署名前に CI 公開の `SHA256SUMS` と全件照合——5/5 一致）：
+
+| 成果物 | SHA-256 | サイズ |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.12-arm64.dmg`（配布物） | `7099ad15a995fb5b3cc7d7ff1f66fddec94061f4153961aa4fc2c63cb5354889` | 11,719,466 B |
+| `XOKSA.app/Contents/MacOS/xoksa`（エンジン） | `495cb576d224af27c21166bbca3425b0b65b172092127376514a6e93f470d170`（未署名の CI 原本） | 11,904,304 B |
+| `XOKSA.app/Contents/MacOS/xoksa-desktop`（シェル） | `49b36c084f4e3f074b8b937c284efa44f4812215f49a54e111a2732adfa3b835`（未署名の CI 原本） | 6,278,496 B |
+| `XOKSA.app/Contents/MacOS/xoksa-setup`（設定アプリ） | `1d3d8862cf979c300eadf33a27b0a2ef2548cfe5780a00043f4c2f09285a8c01`（未署名の CI 原本） | 5,850,272 B |
+| `xoksa-webui-e9855d865d81e5bf_bg.wasm`（エンジンに埋め込むフロントエンド） | `004089644b10c271317384dfb0da56e105c2595cc98a1efdce553631841df0c5` | — |
+
+**署名の経路 — 入力は CI 現物であり、作り直しではない。** 内側のバイナリ 3 本とバンドルを `Developer ID Application: Kohzoh Tsuchiya (463YK5WF6H)` で hardened runtime ＋セキュアタイムスタンプ付きで署名し、公証（提出 `e4e1bec1-3458-43e6-b576-1d1b3ea3a074`・**Accepted**）して staple。DMG は staple 済みの `.app` から `/Applications` シンボリックリンクつきでローカルに作成し、同様に署名・公証（`a67fba74-d7da-4485-b909-3de95600b4f2`・**Accepted**）・staple した。Gatekeeper は双方に **`source=Notarized Developer ID`** を報告し、`dist/` へコピーした後も DMG は同じ判定を保つ。署名は iCloud の外で行う——この版のクローンは `~/Documents` 配下ではなく `~/xoksa-build/XOKSA` に置いた。iCloud 管理下のコピーには `com.apple.fileprovider` 属性が付き、`codesign` がこれを拒否し、その場で消しても付き直すためである。
+
+**ペイロード同一性——差は 1 バイトで、それは署名が動かさざるを得ないバイトである。** 署名を除去すると、各バイナリは CI 原本と**ちょうど 1 バイト**だけ違う。`__LINKEDIT` の `vmsize` が署名を収めるために 16 KiB 1 ページぶん増えた箇所である（エンジン `0x28000`→`0x2c000`、シェル `0x18000`→`0x1c000`、設定アプリ `0x14000`→`0x18000`）。サイズは不変で、コードとデータは CI が作ったものとバイト単位で同一。
+
+**静的 — 合格。** `04730d8` で `scripts/check.sh`：15 ゲート緑・**試験 491 件**・失敗 0。*クローン直後はこのうち 3 ゲートが落ちるが、それは欠陥ではない*——`include_dir!` は `webui-leptos/dist` を必要とし、デスクトップのビルドスクリプトは配置済みの sidecar を必要とする。どちらもビルド生成物であってリポジトリには入らない。§C.1 の recipe の順序（trunk ビルド → エンジン → 設定アプリ → `bundle-engine.sh`）でそれらが揃う。`bundle-engine.sh` は配置の前に sidecar 2 本が 2.9.12 を名乗ることを確認した。
+
+**SOT — 合格。** csv == json == api の出力等価（AAPL：`latest_observed_price` 342.94・`final_score` 7.0 が `--save-technical-log --stdout-log --log-format csv`／`--log-format json`／`/api/symbol/AAPL/summary` の 3 経路で一致）。
+
+**ランタイム — 合格・9/9。** 署名済みエンジンに対する `scripts/inspect.sh`：埋め込み UI 200／CSP ヘッダあり／クロスオリジン POST 403／過大 body 413／`text/plain` POST 415／同一オリジン POST 200／CLI 分析がレポートを生成／バックテスト API が結果を返す／ビルド元を名乗らない。
+
+**フロントエンドの束縛 — 合格。** `webui-leptos/dist` の無いディレクトリからエンジンを起動し、`/` は `xoksa-webui-e9855d865d81e5bf` を参照した。配信された `.wasm` のハッシュは `004089644b…` で現物の WASM と同一。
+
+**ペネトレーション — 測定した項目はすべて合格。1 項目は再現できていない。** パストラバーサル：4 通りの表記すべて 404。メソッド上書きと誤ったメソッド：422／405。`/api/config` に秘密は無い。クロスオリジンの SSE：403。セッション分離：2 クライアントが別々の 32 桁 hex `xoksa_sid` を受け取る。`--private`：`logs/` を作らず、エンジン自身が `Diagnostics log: disabled (private mode)` と表示する。**再現できていないのは容量超過の shed（K3）**——`/api/health` へ 300 同時でも全件 `200` で、ハンドラの応答が速すぎて 256 件が同時に滞留しない。上限は存在し 256。shed 自体は開発中に上限を 2 に下げたビルドで実測しており、v2.9.10 の記録にある。
+
+**SCA — 合格。** 同一ソースの使い捨て `cargo auditable` ビルドに対する `cargo audit bin`：**埋め込み依存 246 件・脆弱性 0**。`osv-scanner --lockfile Cargo.lock`：339 パッケージ・**問題なし**。`cargo audit` と `cargo deny` は上記の静的ゲートで両 workspace とも緑——しかも勧告の例外は 1 件も無い。この版で `zip` の勧告 3 件の例外を設定から撤去したためである。
+
+**SBOM — 再生成し、修正がこの現物にも届いていることを示した。** `sbom/xoksa-native-macos-arm64.cdx.json`、`syft` による CycloneDX 1.5、中立ディレクトリに置いた使い捨ての `cargo auditable` ビルドから読み取り：**library 222 件**（このインベントリを最後に生成した v2.9.10 では 221 件）。そのインベントリとコンポーネント単位で比較すると、差は本プロジェクト自身のクレート（2.9.10 → 2.9.12）、**`zip` 8.6.0 → 9.0.4**——この版が存在する理由である勧告 3 件が、macOS の現物からも消えていることの確認——固定した `calamine` に伴う `quick-xml` 0.41.0 → 0.42.0、2 版ぶんの通常の更新、そして**新規の `nix` 0.31.3** である。最後の 1 件は、Windows の記録が反対側から述べていることの実測による裏づけになる：`zip` 9.0.4 は Unix で `nix` を連れてくるが Windows では連れてこない。両プラットフォームのインベントリがこのコンポーネントで食い違う理由であり、SBOM を 1 本ではなく OS ごとに公開している理由でもある。
+
+**未了。** 出荷ハッシュに対する VirusTotal と OWASP ZAP のパッシブスキャンは操作者の作業で、まだ実施していない。macOS 側は**未公開**で、`v2.9.12` のリリースへ DMG を追加した時点で、§C.1 の規則 7・規則 8 に従い、この見出しに公開日時を加える。
 
 ### v2.9.12（Windows）— CI ビルド現物を 2026-10-17〜10-18 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／SCA／SBOM／ZAP／VirusTotal）。**2026-10-18 20:14 JST 公開**（タグ `v2.9.12` は `cb90df7`）
 
