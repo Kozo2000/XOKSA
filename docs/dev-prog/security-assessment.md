@@ -329,7 +329,7 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 
 **Binary-bound items pending (recorded at ship-time, per this C.4 convention):** per-artifact SHA-256, VirusTotal on the shipped hashes (deferred until code signing, as for v2.7.0), the OWASP ZAP passive scan, and the per-OS SBOM regeneration are measured at the tag/CI ship step against the frozen binary. This record is the source-level evidence at working-tree state and does not substitute for the on-artifact measurement.
 
-### v2.9.12 (macOS) — inspected 2026-10-20 on the CI-built artifacts, signed and notarized — PASS (static, SOT, runtime, penetration, payload identity, SCA, SBOM, signing/notarization, ZAP); VirusTotal pending; not yet published
+### v2.9.12 (macOS) — inspected 2026-10-20 on the CI-built artifacts, signed and notarized — PASS (static, SOT, runtime, penetration, payload identity, SCA, SBOM, signing/notarization, ZAP, VirusTotal); not yet published
 
 The macOS half of 2.9.12. The Windows half shipped on 2026-10-18 (record above); this is the catch-up build, and §1.3 of the handover requires both to come from the same `main`.
 
@@ -371,7 +371,18 @@ The two alerts that are not Info were re-measured on this artifact rather than c
 
 The four timestamp instances are `analyzed_at_timestamp`, `bar_timestamp`, `market_data_latest_timestamp` and `timestamp` — the analysis run time and market-data times, Class C. The response carries exactly those four numeric timestamp fields and no others, measured, so four instances is the complete set; the Windows half reported 3 two days earlier and v2.9.11 reported 4. Since both halves are the same program (proved above), the variation is in how many of them a given scan observed, not in what the endpoint returns — which is as far as this answers the question the Windows record left open.
 
-**Pending.** VirusTotal on the shipped hashes is the operator's step and is not yet done — the service was unreachable when it was attempted on 2026-10-20. The macOS half is **not yet published** — when the DMG is added to the `v2.9.12` release, this heading gains the publication date, per §C.1 rule 7 and rule 8.
+**VirusTotal — 2026-10-20, all four shipped artifacts, 0 detections:** the DMG **0/61**, the engine **0/63**, the desktop shell **0/62**, the settings app **0/63**, each reported as "No security vendors flagged this file as malicious". Every submission was the **signed and notarized** artifact, which is why the three binaries carry hashes other than the unsigned CI originals in the table above; the payload-identity measurement is what ties the two together.
+
+| Submitted artifact | SHA-256 (signed) | Detections |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.12-arm64.dmg` | `7099ad15a995fb5b3cc7d7ff1f66fddec94061f4153961aa4fc2c63cb5354889` | 0 / 61 |
+| `xoksa` (engine) | `3b816cd0825dc26b0bab92d64d7845d0576739d83d6a56b4ee80718e2a37c98a` | 0 / 63 |
+| `xoksa-desktop` (shell) | `1f6b649c9db376f88cd4a5fe305d55bf792e90ff9eaa9f043557db9dbb2e5fcf` | 0 / 62 |
+| `xoksa-setup` (settings app) | `0c6475d113be877176d0c8c91f21fec5fc4c0397c372f0bcf255224ea6ce82f2` | 0 / 63 |
+
+What this is worth is stated rather than assumed, as at every release: a clean multi-engine scan is one datapoint bound to these four hashes, not an audit. *(Operational note, in case the next release meets it: VirusTotal's own web UI was unusable for part of this day — `/gui/` and `/gui/home/upload` were served with `content-encoding: gzip` on an uncompressed body, which every browser rejects as `ERR_CONTENT_DECODING_FAILED`. Measured here: the fault was deterministic per path and on VirusTotal's side, with `/gui/home/search` and `/gui/sign-in` served correctly, so entering through one of those and navigating inside the app worked. Nothing on this side was involved.)*
+
+**Pending.** The macOS half is **not yet published** — when the DMG is added to the `v2.9.12` release, this heading gains the publication date, per §C.1 rule 7 and rule 8.
 
 ### v2.9.12 (Windows) — inspected 2026-10-17 to 2026-10-18 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, SCA, SBOM, ZAP, VirusTotal); **published 2026-10-18 20:14 JST** (tag `v2.9.12` at `cb90df7`)
 
@@ -1375,7 +1386,7 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 
 **現物依存項目は保留（出荷時に本節へ記録・C.4 の慣例通り）：** 現物別 SHA-256・出荷ハッシュへの VirusTotal（v2.7.0 同様、コード署名まで延期）・OWASP ZAP パッシブスキャン・OS別 SBOM 再生成は、tag→CI が凍結した現物に対して実測する。本記録は作業ツリー時点のソース級証跡であり、現物実測の代替ではない。
 
-### v2.9.12（macOS）— CI ビルド現物を 2026-10-20 検査・署名・公証 — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／SCA／SBOM／署名・公証／ZAP）。VirusTotal は未実施、未公開
+### v2.9.12（macOS）— CI ビルド現物を 2026-10-20 検査・署名・公証 — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／SCA／SBOM／署名・公証／ZAP／VirusTotal）。未公開
 
 2.9.12 の macOS 側。Windows 側は 2026-10-18 に出荷済み（上記の記録）で、これはその追随ビルドである。引継ぎ書 §1.3 は両 OS を同じ `main` から作ることを求める。
 
@@ -1417,7 +1428,18 @@ Info でない 2 件は、引き写さずこの現物に対して測り直した
 
 タイムスタンプ 4 件は `analyzed_at_timestamp`・`bar_timestamp`・`market_data_latest_timestamp`・`timestamp` で、分析の実行時刻と市場データの時刻（クラス C）である。この応答が持つ数値タイムスタンプはこの 4 つだけで、他に無い（実測）。よって 4 件が全数である。2 日前の Windows 側は 3 件、v2.9.11 は 4 件だった。両者は同じプログラムである（前述の実測）から、違いはエンドポイントの応答ではなくスキャンが何件観測したかにある——Windows の記録が未検討として残した問いに対して、ここで言えるのはここまでである。
 
-**未了。** 出荷ハッシュに対する VirusTotal は操作者の作業で、まだ実施していない——2026-10-20 に試みた時点でサービスに到達できなかった。macOS 側は**未公開**で、`v2.9.12` のリリースへ DMG を追加した時点で、§C.1 の規則 7・規則 8 に従い、この見出しに公開日時を加える。
+**VirusTotal — 2026-10-20、出荷する 4 本すべてで検出 0。** DMG **0/61**、エンジン **0/63**、デスクトップシェル **0/62**、設定アプリ **0/63**。いずれも「No security vendors flagged this file as malicious」である。提出したのはすべて**署名・公証済み**の現物であり、そのためバイナリ 3 本のハッシュは上の表の未署名 CI 原本とは異なる。両者を結び付けるのはペイロード同一性の測定である。
+
+| 提出した現物 | SHA-256（署名後） | 検出 |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.12-arm64.dmg` | `7099ad15a995fb5b3cc7d7ff1f66fddec94061f4153961aa4fc2c63cb5354889` | 0 / 61 |
+| `xoksa`（エンジン） | `3b816cd0825dc26b0bab92d64d7845d0576739d83d6a56b4ee80718e2a37c98a` | 0 / 63 |
+| `xoksa-desktop`（シェル） | `1f6b649c9db376f88cd4a5fe305d55bf792e90ff9eaa9f043557db9dbb2e5fcf` | 0 / 62 |
+| `xoksa-setup`（設定アプリ） | `0c6475d113be877176d0c8c91f21fec5fc4c0397c372f0bcf255224ea6ce82f2` | 0 / 63 |
+
+この結果の意味は、毎回と同じく推測せず明記する——多エンジンで clean であることは、この 4 つのハッシュに束縛された 1 つの実測値であって、監査ではない。*（次版で同じことに当たった場合のための作業メモ：この日の一時期、VirusTotal の Web UI 自体が使えなかった。`/gui/` と `/gui/home/upload` が、非圧縮の本体に `content-encoding: gzip` を付けて配信されており、ブラウザはこれを `ERR_CONTENT_DECODING_FAILED` で拒否する。実測の結果、壊れ方は URL ごとに決定的で、原因は VirusTotal 側にあった。`/gui/home/search` と `/gui/sign-in` は正常に配信されるため、そこから入ってアプリ内で遷移すれば作業できた。こちら側の環境は無関係である。）*
+
+**未了。** macOS 側は**未公開**で、`v2.9.12` のリリースへ DMG を追加した時点で、§C.1 の規則 7・規則 8 に従い、この見出しに公開日時を加える。
 
 ### v2.9.12（Windows）— CI ビルド現物を 2026-10-17〜10-18 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／SCA／SBOM／ZAP／VirusTotal）。**2026-10-18 20:14 JST 公開**（タグ `v2.9.12` は `cb90df7`）
 
