@@ -68,7 +68,7 @@ anyhow = "1"
 xoksa-paths = { path = "xoksa-paths" }
 crossterm = { version = "0.29", features = ["event-stream"] }
 futures = { version = "0.3", default-features = false, features = ["std"] }
-rustyline = { version = "14", features = [] }
+rustyline = { version = "19", features = [] }
 # OS keychain access. We depend on keyring-core (the Entry/Store API) plus the
 # platform-native store crates (see the [target.*] sections below) directly, and
 # register the native store in keystore.rs. We deliberately do NOT use the
