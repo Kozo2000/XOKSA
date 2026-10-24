@@ -1,4 +1,4 @@
-# xoksa Command-Line Reference v2.9.11
+# xoksa Command-Line Reference v2.9.13
 
 [日本語ドキュメントはこちら。](#ja)
 
@@ -662,7 +662,7 @@ The information described in this tool and this reference is for informational p
 
 <a id="ja"></a>
 
-# xoksa コマンドラインリファレンス v2.9.11
+# xoksa コマンドラインリファレンス v2.9.13
 
 > **言語同期:** 英語と日本語の記載はいずれも有効です。要件・制約・例外・コマンド挙動・運用ルールが片方の言語にだけ存在する場合でも、両方に適用されます。欠落している側は文書不備として更新対象です。
 

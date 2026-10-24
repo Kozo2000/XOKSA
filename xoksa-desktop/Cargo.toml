@@ -10,7 +10,7 @@
 # an OS WebView at the loopback dashboard. See docs/dev-prog/security-design.md §6.
 [package]
 name = "xoksa-desktop"
-version = "2.9.12"
+version = "2.9.13"
 edition = "2021"
 publish = false
 description = "XOKSA desktop app (thin UI shell that launches the xoksa engine)"

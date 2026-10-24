@@ -8,7 +8,7 @@
 # external data — those stay native and are reached over the JSON API.
 [package]
 name = "xoksa-webui"
-version = "2.9.12"
+version = "2.9.13"
 edition = "2021"
 license = "MIT"
 publish = false

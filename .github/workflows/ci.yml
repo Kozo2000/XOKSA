@@ -39,6 +39,15 @@ jobs:
         with:
           persist-credentials: false # do not leave the GITHUB_TOKEN in .git/config
 
+      # Every place that states the current version must match Cargo.toml.
+      # The tags are fetched so the check can tell a released version from an
+      # unreleased one; the checkout above brings none.
+      - name: Version labels match Cargo.toml
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin '+refs/tags/*:refs/tags/*'
+          bash scripts/check-versions.sh
+
       # The version lives in rust-toolchain.toml and nowhere else. Reading it
       # here means the action installs that toolchain outright, instead of
       # installing `stable` and leaving rustup to auto-install the pinned one on
