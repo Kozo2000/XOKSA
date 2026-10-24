@@ -1809,7 +1809,7 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 
 [[package]]
 name = "xoksa-webui"
-version = "2.9.12"
+version = "2.9.13"
 dependencies = [
  "console_error_panic_hook",
  "futures",

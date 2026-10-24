@@ -16,7 +16,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [2.9.12] — unreleased
+## [2.9.13] — unreleased
+
+After 2.9.12 shipped, advisories were published against crates in the shipped dependency tree. RustSec publishes no CVSS score for any of them:
+
+- RUSTSEC-2026-0382 (CVE-2026-111943): `rustls-webpki` 0.103.15 may accept certificate paths containing distrusted emSign intermediates, whose private keys are now well known. It verifies certificates on the engine's outbound HTTPS connections.
+- RUSTSEC-2026-0383 (CVE-2026-111943): `webpki-root-certs` 1.0.9 bundles a root that allows those paths.
+- RUSTSEC-2026-0386 (unsound): `tokio` `AsyncFd` constructors violate I/O safety. The affected API is Unix-only.
+- `clipboard-win` 5.4.1, pulled in by `rustyline`, was yanked.
+
+All four are replaced with fixed versions without waiting to assess whether XOKSA reaches the affected code. That requires a rebuild, so the version moves to 2.9.13.
+
+### Security
+- **`rustls-webpki` 0.103.16, `webpki-root-certs` 1.0.11, `tokio` 1.54.1, `clipboard-win` 5.4.3.** Updated in the lockfiles only; no `Cargo.toml` requirement changed. `tokio` 1.54.1 is applied to the engine, the desktop shell and the settings app; it brings `mio` 1.2.4, `socket2` 0.6.5 and `tokio-macros` 2.7.2. ([Cargo.lock](Cargo.lock), [xoksa-desktop/Cargo.lock](xoksa-desktop/Cargo.lock), [xoksa-setup/Cargo.lock](xoksa-setup/Cargo.lock))
+
+### Fixed
+- **README and the command reference carry the current version.** The 2.9.12 version bump updated the manifests and lockfiles but left both titles at v2.9.11, and the CHANGELOG headings called 2.9.12 unreleased after it shipped. ([README.md](README.md), [docs/manual/command-reference.md](docs/manual/command-reference.md))
+
+### Added
+- **A gate that every version label matches `Cargo.toml`.** `scripts/check-versions.sh` compares the version in `Cargo.toml` with the sub-crate manifests, both `tauri.conf.json`, the four lockfiles, the README and command-reference titles in both languages, and the CHANGELOG headings. Once the version is tagged, a heading that still says unreleased fails. It runs in `scripts/check.sh` and in the CI job `Format / Lint / Test`. ([scripts/check-versions.sh](scripts/check-versions.sh), [scripts/check.sh](scripts/check.sh), [.github/workflows/ci.yml](.github/workflows/ci.yml))
+
+### Changed
+- **Versions aligned to 2.9.13** across the engine, desktop app, settings app and web UI, including each `Cargo.lock`, `tauri.conf.json`, README and the command reference; MSI name `XOKSA-2.9.13-x64.msi`.
+
+---
+
+## [2.9.12] — shipped 2026-10-18 (Windows), 2026-10-20 (macOS)
 
 XOKSA reads Excel files with the `calamine` library, which uses the `zip` component internally to open them (an Excel file is a compressed archive inside). XOKSA itself does not depend on `zip` and has no feature that creates or extracts ZIP files. In the final stage of the v2.9.11 shipping inspection — the CI of the pull request that brings the record into `main` — three advisories were found against that component, `zip` 8.6.0. RustSec rates one Critical, one High, and publishes no score for the third:
 
@@ -142,7 +167,32 @@ All three are in extracting an archive to the filesystem (`extract`), which XOKS
 
 ---
 
-## [2.9.12] — 未リリース
+## [2.9.13] — 未リリース
+
+2.9.12 の出荷後に、出荷物の依存に含まれる部品に勧告が公表された。いずれも、RustSec に CVSS の点数は載っていない。
+
+- RUSTSEC-2026-0382（CVE-2026-111943）：`rustls-webpki` 0.103.15 は、信頼を取り消された emSign の中間証明書（秘密鍵が広く知られた）を含む証明書の経路を受け入れることがある。エンジンが外部へ HTTPS で接続するときの証明書の検証を担う部品である。
+- RUSTSEC-2026-0383（CVE-2026-111943）：`webpki-root-certs` 1.0.9 は、その経路を許すルート証明書を同梱している。
+- RUSTSEC-2026-0386（unsound）：`tokio` の `AsyncFd` の生成関数が I/O の安全性に反する。対象の API は Unix だけのもの。
+- `rustyline` が連れてくる `clipboard-win` 5.4.1 が取り下げ（yank）られた。
+
+XOKSA が該当箇所に到達するかの評価を待たずに、4 件とも修正版に替える。これには再ビルドが必要となるため、版を 2.9.13 に上げる。
+
+### セキュリティ
+- **`rustls-webpki` 0.103.16、`webpki-root-certs` 1.0.11、`tokio` 1.54.1、`clipboard-win` 5.4.3。** ロックファイルだけを更新し、`Cargo.toml` の指定は変えていない。`tokio` 1.54.1 はエンジン・デスクトップ・設定アプリに適用し、`mio` 1.2.4・`socket2` 0.6.5・`tokio-macros` 2.7.2 が伴う。([Cargo.lock](Cargo.lock)、[xoksa-desktop/Cargo.lock](xoksa-desktop/Cargo.lock)、[xoksa-setup/Cargo.lock](xoksa-setup/Cargo.lock))
+
+### 修正
+- **README とコマンドリファレンスの題名を、現在の版数にした。** 2.9.12 の版上げは、マニフェストとロックファイルは直したが、この 2 つの題名を v2.9.11 のまま残した。CHANGELOG の見出しも、出荷後まで 2.9.12 を未リリースと書いていた。([README.md](README.md)、[docs/manual/command-reference.md](docs/manual/command-reference.md))
+
+### 追加
+- **版数の表記が `Cargo.toml` と一致するかを確かめるゲート。** `scripts/check-versions.sh` が、`Cargo.toml` の版数を、サブクレートのマニフェスト・`tauri.conf.json` 2 つ・ロックファイル 4 つ・README とコマンドリファレンスの英日の題名・CHANGELOG の見出しと照合する。その版数にタグが付いた後も見出しが未リリースのままなら、失敗にする。`scripts/check.sh` と、CI の `Format / Lint / Test` で走る。([scripts/check-versions.sh](scripts/check-versions.sh)、[scripts/check.sh](scripts/check.sh)、[.github/workflows/ci.yml](.github/workflows/ci.yml))
+
+### 変更
+- **版数を 2.9.13 に揃えた**（エンジン・デスクトップアプリ・設定アプリ・Web UI と、各 `Cargo.lock`・`tauri.conf.json`・README・コマンドリファレンス）。MSI 名は `XOKSA-2.9.13-x64.msi`。
+
+---
+
+## [2.9.12] — 出荷済み（Windows 2026-10-18・macOS 2026-10-20）
 
 XOKSA は Excel ファイルの読み込みに `calamine` というライブラリを使っており、このライブラリが Excel ファイルを開くために内部で `zip` という部品を使う（Excel ファイルは中身が圧縮形式のため）。XOKSA 自身は `zip` に依存しておらず、ZIP ファイルを作る機能も展開する機能も持たない。v2.9.11 の出荷検査の最終段（記録を main に取り込むプルリクエストの CI）で、この部品 `zip` 8.6.0 に勧告 3 件が見つかった。RustSec の評価では、Critical が 1 件、High が 1 件、点数の公表が無いものが 1 件である。
 

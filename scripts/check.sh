@@ -38,6 +38,9 @@ optional() { # optional "<label>" <tool-binary> <cmd...>
     fi
 }
 
+# 0) Version labels match Cargo.toml  (ci.yml job: check)
+run "version labels" bash scripts/check-versions.sh
+
 # 1) Format / Lint / Test  (ci.yml job: check)
 run "cargo fmt --check" cargo fmt -- --check
 run "cargo clippy -D warnings" cargo clippy -- -D warnings
