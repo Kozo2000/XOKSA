@@ -238,7 +238,6 @@ A shipping inspection binds to **one frozen local artifact by hash**: build once
 5. **If the base moves between the build and the publish, rebuild and re-inspect.** The artifact is bound to one source; a source that has moved is a different source.
 6. **Never delete a release branch.** Squash & Merge folds a branch's commits into one new commit on `main`, so the commit a record names survives **only on that branch** — measured at v2.9.8: `5065da8` (v2.9.7) and `e8b973d` (v2.9.8) are both unreachable from `main` and present only on `origin/release/v2.9.7` and `origin/release/v2.9.8`. Deleting the branch would leave the record pointing at nothing. `deleteBranchOnMerge` is therefore off for this repository.
 7. **A §C.4 heading states dated facts, never a mutable state.** "Not yet shipped" is true until it is not, and nothing makes it change: v2.9.9's record carried it while the release went out **twelve minutes later**, and the other side of the project read it, believed the version was unpublished, and rebuilt a macOS artifact against a source the published one does not match — half a day lost. So a heading carries *when it was inspected* and *when it was published*, both of which stay true; the **current** state lives in one place only, the handover note, which is overwritten rather than appended. **Publishing is not finished until the §C.4 heading carries the publication date**, in both languages.
-8. **What only publication can settle is recorded after it, as a formal update of the record.** Everything that can be measured before publication — the source commit, the CI run IDs, the signed artifacts' hashes, the inspection results and the SBOM — is merged before the release is published (rule 2). The publication date, and anything that can only be observed on the published release, such as what a first-time user sees after downloading it, are added afterwards in a pull request that changes nothing but §C.4. That pull request is a required step of every release, not a follow-up fix.
 
 **Across a repository migration.** This project plans to publish a fresh repository built from `main`'s current tree **without carrying the history**. Every commit a §C.4 record names, and every `release/*` branch holding one, stays behind with that history — and so would any tag, since a tag travels with the commit it points at. The decision recorded here is that **the source repository is kept as a private archive rather than deleted**, so those commits stay reachable: a record written before the migration refers to the archive, not to the published repository. Rule 6 therefore keeps applying *to the archive* — the release branches must survive there — and the first §C.4 record written after the migration states which repository it is bound to, so no record is ambiguous about where its commit lives.
 
@@ -328,6 +327,47 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 **§4.2 duplication — resolved (behaviour-preserving throughout).** Consolidated to one source: #1 the adjusted-score line (10 copies → 1 `adjusted_score_line`), #3 `send_cloud_prompt` (3 provider senders → 1), #5 `key_present_in_env_file` → `read_key_from_env_file`, #6 the score-unavailable labels unified on "情報なし/unavailable" (utils the single source), #7 `colored_price_diff`, #8 `cloud_provider_rows`, #10 `send_chat_turn_dispatch`, #2 `group_thousands` (each caller keeps its own f64→int conversion — display-only), #4 `parse_env_line` (+ `live_ollama_instances` now uses `load_env_map`; each caller keeps its own Class-A filter, so a Class A value is never materialized), #9 `sanitize_symbol_result` (returns the error so the four reporting sites keep their message), #11 the operator symbol via `rule_operator_catalog`, #12 `fundamental_value_lines` (the revenue→next-FY value block; the display vs LLM header blocks are distinct views and stay per-function), #13 `cross_status`/`CrossLabels`, #14 `deviation_line`, #15 `symbol_of` reuse, #16 `ChatTokenUsage::accumulate`, #17 `on_off`, #18 the context.rs percent-change via `displayed_price_diff`. **Verified NOT a real duplicate implementation, left as-is:** #19 — `fmt_num` and `fmt_currency_auto` produce different output (no-symbol 4-dp vs symbol+commas 2-dp); their only shared token is the `100.0` threshold, which also drives the §1 output-integrity guard, so unifying it would false-couple display precision with a security threshold. Distinct sub-parts were likewise left (not duplicates): the `parse_alert_condition` operator ordering and the eval semantics in #11; the raw-bar (indicators.rs) and reload-delta (chat) percent computations in #18.
 
 **Binary-bound items pending (recorded at ship-time, per this C.4 convention):** per-artifact SHA-256, VirusTotal on the shipped hashes (deferred until code signing, as for v2.7.0), the OWASP ZAP passive scan, and the per-OS SBOM regeneration are measured at the tag/CI ship step against the frozen binary. This record is the source-level evidence at working-tree state and does not substitute for the on-artifact measurement.
+
+### v2.9.13 (Windows) — inspected 2026-10-24 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, SCA, SBOM, ZAP, VirusTotal)
+
+**Why this release exists.** After 2.9.12 shipped, advisories were published against crates in its dependency tree: RUSTSEC-2026-0382 against `rustls-webpki` 0.103.15 (2026-10-20, CVE-2026-111943: certificate paths through distrusted emSign intermediates may be accepted), RUSTSEC-2026-0383 against `webpki-root-certs` 1.0.9 (2026-10-19, same CVE: a bundled root allows those paths), RUSTSEC-2026-0386 against `tokio` (2026-10-13, unsound: `AsyncFd` constructors violate I/O safety; the API is Unix-only), and `clipboard-win` 5.4.1 was yanked. RustSec publishes no CVSS score for any of them. They were found when `scripts/check.sh` failed on `cargo audit` and `cargo deny`. All four are replaced with fixed versions without waiting to assess whether XOKSA reaches the affected code. `webpki-root-certs` is not in the Windows runtime graph (`cargo tree --target x86_64-pc-windows-msvc` prints nothing, and neither the 2.9.12 nor the 2.9.13 engine inventory lists it), so RUSTSEC-2026-0383 did not reach the shipped Windows artifacts; the lockfile is updated all the same.
+
+**What changed.** Lockfiles only; no `Cargo.toml` requirement changed: `rustls-webpki` 0.103.16, `webpki-root-certs` 1.0.11, `clipboard-win` 5.4.3 and `tokio` 1.54.1 in the engine (bringing `mio` 1.2.4, `socket2` 0.6.5 and `tokio-macros` 2.7.2, and dropping `windows-sys` 0.59.0), and `tokio` 1.54.1 in the desktop shell and the settings app. The 2.9.12 version bump had left README and the command reference titled v2.9.11, so `scripts/check-versions.sh` now compares every version label with `Cargo.toml` and runs in `scripts/check.sh` and in the CI job `Format / Lint / Test`. Rule 8 of §C.1 is removed: it required a separate pull request after every publication.
+
+**Build provenance — GitHub Actions `Release build (Windows)` run `40053495910`, source commit `2363ab9` on `v2.9.13-security`**, `rustc 1.98.1`, read out of all three executables. The executables were signed on the owner's machine, handed over through the draft release `v2.9.13-signing`, and the shipped installer was packaged from them without compiling by `Package signed installer (Windows)` run `40063976934`, which checked out the same `2363ab9`; the MSI was signed last (§C.1).
+
+**Signing.** Certum Open Source Code Signing (cloud), serial `30e49e39125ad5e47056f4f08b867ef5`, thumbprint `fe46d4e648938217c4255920b6cdf519a3836fe6`. The MSI and the three executables each verify as `Valid` with a Certum timestamp — measured 2026-10-24.
+
+**Frozen Windows artifacts** (signed):
+
+| Artifact | SHA-256 | Size |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.13-x64.msi` (installer, carries the three binaries below) | `7666317add66d7f5693a1d6bd0e5951025c9a8be27bdf05f5922c1514f4ab37c` | 11,776,000 B |
+| `xoksa.exe` (engine) | `1132435a864e009a17ec7090d852a941a703bec41cd892fd4ae8ee58b1948d97` | 14,897,760 B |
+| `xoksa-desktop.exe` (connection shell) | `67e990d1a57f6971b3f3d6de4618c034269af8e2c7705442a64c3ba06d138429` | 9,646,688 B |
+| `xoksa-setup.exe` (settings app) | `755add07051cdcf9f92b0eb1851bd650e34de823265a5f6382d744cc5926e366` | 8,433,760 B |
+| `xoksa-webui-70ca5e18fb87a284_bg.wasm` (frontend embedded in the engine) | `1f16139a4c26ba88fd89b779cfd4ddd44c46f9fcd69967308bb24064264e3979` | 724,574 B |
+| `xoksa-manuals-2.9.13.zip` (manuals, built from `2363ab9` on `v2.9.13-security`) | `d7ccbca1864bdb5b10673ad0a78bbb3b739c8e767c0c04b8e3490b9a36e7f703` | 19,028,918 B |
+
+**Results measured on 2026-10-24.**
+- **Payload identity**: with the signatures removed and the PE checksum zeroed, the three executables match CI's `to-sign/` byte for byte; the MSI, unsigned and signed, extracted administratively, holds exactly the three signed executables.
+- **Build-path gate**: passes on the three executables and the MSI.
+- **AV recipe**: engine `.rsrc` 2,048 B at entropy 4.180 and `.rdata` 5,207,552 B at 5.882; desktop `.rsrc` 32,768 B at 3.898; settings app `.rsrc` 32,768 B at 3.900 — all within 0.01 of v2.9.12's figures.
+- **Static**: `scripts/check.sh` — 16 gates green (the 15 of v2.9.12 plus the version-label gate), nothing skipped, 491 tests; the settings app's fmt and clippy also clean; `cargo audit` on all four lockfiles reports none of the four.
+- **SCA**: `osv-scanner` — engine **0**; the WASM's four and the desktop shell's and settings app's seven are the same crates as at v2.9.12, re-measured: `glib` and `proc-macro-error` are not in the Windows runtime graph; the five unmaintained `unic-*` crates reach the shipped binaries through `urlpattern` (unmaintained, no vulnerability); in the WASM, `paste`, `proc-macro-error2` and `xxhash-rust` serve only proc-macros and their names are absent from the shipped `.wasm`, while `event-listener` 5.4.1 is present, unreachable as recorded at v2.9.11.
+- **SOT**: on NVDA, 50 of 51 columns agree across CSV, JSON and `/api/symbol/NVDA/summary`; the remaining one is `analyzed_at_timestamp`, the run time, two to three seconds apart.
+- **Runtime**: `inspect.sh` 9/9; headless Edge mounts the WASM app (3 selects, 4 inputs, 7 buttons, Japanese UI).
+- **Frontend binding**: started from a directory without `webui-leptos/dist`, the engine's `/` references `xoksa-webui-70ca5e18fb87a284` and serves the artifact's own `.wasm`.
+- **Penetration**: the admission cap answers `200` with 255 requests held, `503` at 256, and `200` again after release; a decoy `xoksa.env` in the launch directory is ignored (the report is identical to a control run, and the canonical file is unchanged); six path-traversal payloads all 404; two clients receive distinct `HttpOnly` / `SameSite=Strict` `xoksa_sid` cookies; a 5 MB body 413.
+- **The changed TLS stack**: the signed engine fetched market data over HTTPS with `rustls-webpki` 0.103.16 (the SOT runs above).
+
+**SBOM — four inventories regenerated** from throwaway `cargo auditable` builds of `2363ab9` (derived, not extracted): `xoksa-native-windows-x86_64` **224**, `xoksa-desktop-windows-x86_64` **196**, `xoksa-setup-windows-x86_64` **212**, `xoksa-webui-leptos` **188**, all CycloneDX 1.5 and free of absolute paths. Against the v2.9.12 inventories the engine moves `clipboard-win` 5.4.1 → 5.4.3, `mio` 1.0.4 → 1.2.4, `rustls-webpki` 0.103.15 → 0.103.16, `socket2` 0.6.0 → 0.6.5 and `tokio` 1.50.0 → 1.54.1, and drops `windows-sys` 0.59.0 (one component fewer); the desktop shell and the settings app move `tokio` to 1.54.1; the WASM changes only this project's own version. `cargo audit bin` over the throwaway engine's 253 embedded dependencies: 0.
+
+**OWASP ZAP passive scan — 2026-10-24, over the LAN against the signed engine bound to `0.0.0.0:8787` — 8 alert types, 0 High**, the same eight as v2.9.12: Anti-CSRF token missing on `GET /login` (Medium, 1), SRI attribute missing on the `xoksa-webui-70ca5e18f…` asset (1), Unix timestamp disclosure on `/api/symbol/NVDA/summary` (4), cookie poisoning on `POST /auth` (1), session-management response (3), modern web application (1), localStorage (5), suspicious comments (1). The timestamp count was 3 at v2.9.12 and 4 at v2.9.11; the reason has not been examined.
+
+**VirusTotal** (on the signed artifacts, 2026-10-24): the MSI **0/63**, `xoksa.exe` **0/71**, `xoksa-desktop.exe` **0/70**, `xoksa-setup.exe` **0/70**.
+
+**Not measured:** MSI uninstall, and a runtime prompt injection (H1), for the reasons given at v2.9.10. The publication date and what a first-time user sees on the published release are added by the next release's pull request.
 
 ### v2.9.12 (macOS) — inspected 2026-10-20 on the CI-built artifacts, signed and notarized — PASS (static, SOT, runtime, penetration, payload identity, SCA, SBOM, signing/notarization, ZAP, VirusTotal); **published 2026-10-20 20:10 JST** (added to the existing `v2.9.12` release, whose tag is at `cb90df7`; this build is from `04730d8`, proved below to be the same program)
 
@@ -1302,7 +1342,6 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 5. **ビルドから公開までの間にベースが動いたら、作り直して再検査する。** 現物は 1 つのソースに束縛される。動いたソースは別のソースである。
 6. **release ブランチは削除しない。** Squash & Merge はブランチのコミットを畳んで `main` に新しい 1 個を作るため、記録が名指しするコミットは**そのブランチにしか残らない**——v2.9.8 時点の実測で、`5065da8`（v2.9.7）と `e8b973d`（v2.9.8）はいずれも `main` から到達不能で、`origin/release/v2.9.7` と `origin/release/v2.9.8` にのみ存在する。ブランチを消すと記録の参照先が消える。本リポジトリで `deleteBranchOnMerge` を無効にしているのはこのためである。
 7. **§C.4 の見出しには日付つきの事実だけを書き、可変の状態を書かない。**「未出荷」は、そうでなくなるまでは真で、変える仕掛けが無い。実際に v2.9.9 の記録はこれを載せたまま**12 分後にリリースが出て**、反対側（macOS）がそれを読んで未公開と信じ、公開物と一致しないソースから現物を作り直した——半日の損失。よって見出しには**いつ検査したか**と**いつ公開したか**——どちらも後から変わらない——を書く。**現在の**状態は 1 箇所（引継ぎ書）にだけ置き、追記ではなく上書きする。**公開は、§C.4 の見出しに公開日が入るまで終わっていない**（日英とも）。
-8. **公開によってしか確定しないことは、公開の後に、記録の正式な更新として書く。** 公開前に測れること——ソースコミット・CI の run ID・署名済み現物のハッシュ・検査結果・SBOM——は、公開の前にマージする（規則 2）。公開日時と、公開されたリリースでしか観測できないこと（ダウンロードした初回利用者が見る画面など）は、§C.4 以外を変えない PR で、公開の後に加える。この PR は各リリースの必須の工程であり、後追いの修正ではない。
 
 **リポジトリの引っ越しをまたぐ場合。** 本プロジェクトは、`main` の現在のツリーだけを新しいリポジトリとして公開し、**履歴は持ち込まない**計画である。§C.4 の記録が名指しするコミットも、それを保持する `release/*` ブランチも、履歴とともに元のリポジトリに残る（タグも同様である。タグは指し示すコミットと一緒にしか移動しない）。ここで記録する判断は、**引っ越し元を削除せず非公開のアーカイブとして残す**ことである。したがってそれらのコミットは引き続き到達可能であり、引っ越し前に書かれた記録が指すのは公開リポジトリではなく**このアーカイブ**である。規定 6 はアーカイブに対して効き続ける——release ブランチはそこで生き残らなければならない——また、引っ越し後に最初に書く §C.4 の記録には、どのリポジトリに束縛されているかを明記する。これにより、どの記録も自分のコミットの在り処が曖昧にならない。
 
@@ -1391,6 +1430,47 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 **§4.2 の重複——解消（全て挙動保存）。** 単一ソース化：#1 スコア調整行（10コピー→1 `adjusted_score_line`）／#3 `send_cloud_prompt`（3送信→1）／#5 `key_present_in_env_file`→`read_key_from_env_file`／#6 スコア不明ラベルを「情報なし/unavailable」に統一（utils を単一源）／#7 `colored_price_diff`／#8 `cloud_provider_rows`／#10 `send_chat_turn_dispatch`／#2 `group_thousands`（f64→整数変換は各呼出側が保持・表示専用）／#4 `parse_env_line`（＋`live_ollama_instances` は `load_env_map` を利用。除外条件は各自保持でクラスA値を材料化しない）／#9 `sanitize_symbol_result`（エラーを返し4つの報告サイトの文言を保持）／#11 演算子記号を `rule_operator_catalog` から／#12 `fundamental_value_lines`（revenue〜次期FYの値行。表示/LLMのヘッダは別ビューで各関数に残置）／#13 `cross_status`/`CrossLabels`／#14 `deviation_line`／#15 `symbol_of` 再利用／#16 `ChatTokenUsage::accumulate`／#17 `on_off`／#18 context.rs の前足比を `displayed_price_diff` 経由に。**真の重複でないと確認し据え置き：** #19——`fmt_num` と `fmt_currency_auto` は出力が異なる（記号なし4桁 vs 記号+カンマ2桁）。共有は `100.0` 閾値のみで、これは §1 の出力整合ガードも使うため、統合すると表示精度とセキュリティ閾値を誤って結合してしまう。別概念の下位部分も据え置き（非重複）：#11 の `parse_alert_condition` の演算子解析順・eval のセマンティクス、#18 の生バー(indicators.rs)・リロード差分(chat)の前足比計算。
 
 **現物依存項目は保留（出荷時に本節へ記録・C.4 の慣例通り）：** 現物別 SHA-256・出荷ハッシュへの VirusTotal（v2.7.0 同様、コード署名まで延期）・OWASP ZAP パッシブスキャン・OS別 SBOM 再生成は、tag→CI が凍結した現物に対して実測する。本記録は作業ツリー時点のソース級証跡であり、現物実測の代替ではない。
+
+### v2.9.13（Windows）— CI ビルド現物を 2026-10-24 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／SCA／SBOM／ZAP／VirusTotal）
+
+**この版の理由。** 2.9.12 の出荷後に、その依存に含まれる部品に勧告が公表された。`rustls-webpki` 0.103.15 に RUSTSEC-2026-0382（2026-10-20、CVE-2026-111943：信頼を取り消された emSign の中間証明書を通る証明書の経路を受け入れることがある）、`webpki-root-certs` 1.0.9 に RUSTSEC-2026-0383（2026-10-19、同じ CVE：同梱のルート証明書がその経路を許す）、`tokio` に RUSTSEC-2026-0386（2026-10-13、unsound：`AsyncFd` の生成関数が I/O の安全性に反する。対象の API は Unix だけのもの）。`clipboard-win` 5.4.1 は取り下げ（yank）られた。いずれも RustSec に CVSS の点数は載っていない。`scripts/check.sh` の `cargo audit` と `cargo deny` が失敗して見つかった。XOKSA が該当箇所に到達するかの評価を待たずに、4 件とも修正版に替える。`webpki-root-certs` は Windows の実行時の依存に入っていない（`cargo tree --target x86_64-pc-windows-msvc` で何も出ず、2.9.12 と 2.9.13 のエンジンのインベントリにも無い）ため、RUSTSEC-2026-0383 は出荷した Windows の現物には届いていなかった。それでもロックファイルは更新した。
+
+**変えたこと。** ロックファイルだけで、`Cargo.toml` の指定は変えていない。エンジンは `rustls-webpki` 0.103.16・`webpki-root-certs` 1.0.11・`clipboard-win` 5.4.3・`tokio` 1.54.1（`mio` 1.2.4・`socket2` 0.6.5・`tokio-macros` 2.7.2 が伴い、`windows-sys` 0.59.0 が外れる）、デスクトップシェルと設定アプリは `tokio` 1.54.1。2.9.12 の版上げは README とコマンドリファレンスの題名を v2.9.11 のまま残していたため、版数の表記を全箇所 `Cargo.toml` と照合する `scripts/check-versions.sh` を足し、`scripts/check.sh` と CI の `Format / Lint / Test` で走らせる。§C.1 の規則 8 を削除した。公開のたびに別の PR を求める規則だった。
+
+**ビルド来歴——GitHub Actions `Release build (Windows)` の run `40053495910`、ソースコミットは `v2.9.13-security` の `2363ab9`**、`rustc 1.98.1`（実行ファイル 3 本すべてから読み出した）。実行ファイルはオーナーの端末で署名し、下書きリリース `v2.9.13-signing` で受け渡した。出荷用のインストーラは、同じ `2363ab9` をチェックアウトした `Package signed installer (Windows)` の run `40063976934` が、コンパイルせずにそれらから組んだ。MSI には最後に署名した（§C.1）。
+
+**署名。** Certum Open Source Code Signing（クラウド）、シリアル `30e49e39125ad5e47056f4f08b867ef5`、拇印 `fe46d4e648938217c4255920b6cdf519a3836fe6`。MSI と実行ファイル 3 本は、いずれも Certum のタイムスタンプ付きで `Valid`——2026-10-24 に実測。
+
+**凍結した Windows 現物**（署名済み）：
+
+| 現物 | SHA-256 | サイズ |
+| :--- | :--- | :--- |
+| `XOKSA-2.9.13-x64.msi`（インストーラ。下の 3 本を収める） | `7666317add66d7f5693a1d6bd0e5951025c9a8be27bdf05f5922c1514f4ab37c` | 11,776,000 B |
+| `xoksa.exe`（エンジン） | `1132435a864e009a17ec7090d852a941a703bec41cd892fd4ae8ee58b1948d97` | 14,897,760 B |
+| `xoksa-desktop.exe`（接続シェル） | `67e990d1a57f6971b3f3d6de4618c034269af8e2c7705442a64c3ba06d138429` | 9,646,688 B |
+| `xoksa-setup.exe`（設定アプリ） | `755add07051cdcf9f92b0eb1851bd650e34de823265a5f6382d744cc5926e366` | 8,433,760 B |
+| `xoksa-webui-70ca5e18fb87a284_bg.wasm`（エンジンに埋め込むフロントエンド） | `1f16139a4c26ba88fd89b779cfd4ddd44c46f9fcd69967308bb24064264e3979` | 724,574 B |
+| `xoksa-manuals-2.9.13.zip`（マニュアル。`v2.9.13-security` の `2363ab9` から作成） | `d7ccbca1864bdb5b10673ad0a78bbb3b739c8e767c0c04b8e3490b9a36e7f703` | 19,028,918 B |
+
+**2026-10-24 の実測結果。**
+- **ペイロード同一性**：署名を外し PE チェックサムを 0 にすると、実行ファイル 3 本は CI の `to-sign/` とバイト単位で一致。MSI は署名前・署名後とも、管理用に展開すると中身は署名済みの 3 本だけ。
+- **ビルドパスのゲート**：3 本と MSI のすべてで合格。
+- **AV レシピ**：エンジンの `.rsrc` 2,048 B・エントロピー 4.180、`.rdata` 5,207,552 B・5.882。デスクトップの `.rsrc` 32,768 B・3.898。設定アプリの `.rsrc` 32,768 B・3.900——いずれも v2.9.12 の数値から 0.01 以内。
+- **静的**：`scripts/check.sh` のゲート 16 本（v2.9.12 の 15 本に版数のゲートを加えたもの）が緑・skipped 0・テスト 491 件。設定アプリの fmt・clippy も合格。4 つのロックファイルの `cargo audit` に、4 件はどれも出ない。
+- **SCA**：`osv-scanner`——エンジン **0**。WASM の 4 件と、デスクトップ・設定アプリの 7 件は v2.9.12 と同じ部品で、測り直した。`glib` と `proc-macro-error` は Windows の実行時の依存に入らない。保守終了の `unic-*` 5 件は `urlpattern` 経由で出荷物に入る（保守終了の通知で脆弱性ではない）。WASM では、`paste`・`proc-macro-error2`・`xxhash-rust` はマクロのためだけの部品で、出荷する `.wasm` に名前が無い。`event-listener` 5.4.1 は入っているが、v2.9.11 の記録のとおり到達しない。
+- **SOT**：NVDA で、CSV・JSON・`/api/symbol/NVDA/summary` の 51 列中 50 列が一致。残る 1 列は実行時刻の `analyzed_at_timestamp` で、2〜3 秒の差。
+- **ランタイム**：`inspect.sh` 9/9。ヘッドレスの Edge で WASM の画面が組み上がる（select 3・input 4・button 7、日本語 UI）。
+- **フロントエンドの束縛**：`webui-leptos/dist` の無いフォルダから起動したエンジンの `/` は `xoksa-webui-70ca5e18fb87a284` を参照し、現物の `.wasm` を配信する。
+- **ペネトレ**：入場上限は 255 件を止めた状態で `200`、256 件で `503`、解放後は `200`。起動フォルダに置いたおとりの `xoksa.env` は無視される（レポートは対照の実行と同一で、正規の設定ファイルは変わらない）。パストラバーサル 6 種はすべて 404。2 つのクライアントには別々の `HttpOnly`／`SameSite=Strict` の `xoksa_sid`。5 MB のボディは 413。
+- **今回変えた TLS の部品**：署名済みのエンジンは、`rustls-webpki` 0.103.16 で HTTPS により市場データを取得した（上の SOT の実行）。
+
+**SBOM——4 本を作り直した。** `2363ab9` の使い捨て `cargo auditable` ビルドから（抽出ではなく導出）：`xoksa-native-windows-x86_64` **224**、`xoksa-desktop-windows-x86_64` **196**、`xoksa-setup-windows-x86_64` **212**、`xoksa-webui-leptos` **188**。すべて CycloneDX 1.5 で、絶対パスは無い。v2.9.12 のインベントリと比べ、エンジンは `clipboard-win` 5.4.1 → 5.4.3、`mio` 1.0.4 → 1.2.4、`rustls-webpki` 0.103.15 → 0.103.16、`socket2` 0.6.0 → 0.6.5、`tokio` 1.50.0 → 1.54.1 で、`windows-sys` 0.59.0 が外れた（1 個減）。デスクトップと設定アプリは `tokio` が 1.54.1 に。WASM は本プロジェクト自身の版数だけが変わる。使い捨てのエンジンに埋め込まれた 253 個の依存への `cargo audit bin`：0 件。
+
+**OWASP ZAP パッシブスキャン——2026-10-24、LAN 越しに `0.0.0.0:8787` で起動した署名済みのエンジンに対して——8 種類・High 0**。v2.9.12 と同じ 8 種類：`GET /login` の Anti-CSRF トークン欠如（Medium・1）、`xoksa-webui-70ca5e18f…` の SRI 属性欠如（1）、`/api/symbol/NVDA/summary` の Unix タイムスタンプの露見（4）、`POST /auth` の Cookie ポイズニング（1）、セッション管理レスポンス（3）、モダン Web アプリ（1）、localStorage（5）、疑わしいコメント（1）。タイムスタンプの件数は v2.9.12 では 3 件、v2.9.11 では 4 件だった。理由は調べていない。
+
+**VirusTotal**（署名済みの現物、2026-10-24）：MSI **0/63**、`xoksa.exe` **0/71**、`xoksa-desktop.exe` **0/70**、`xoksa-setup.exe` **0/70**。
+
+**未実測：** MSI のアンインストールと、ランタイムのプロンプトインジェクション（H1）。理由は v2.9.10 のとおり。公開日時と、公開されたリリースで初回利用者が見る画面は、次の版の PR で加える。
 
 ### v2.9.12（macOS）— CI ビルド現物を 2026-10-20 検査・署名・公証 — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／SCA／SBOM／署名・公証／ZAP／VirusTotal）。**2026-10-20 20:10 JST 公開**（既存の `v2.9.12` リリースへ追加。タグは `cb90df7`、本ビルドは `04730d8`——後述のとおり同一のプログラム）
 
