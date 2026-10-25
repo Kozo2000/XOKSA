@@ -154,6 +154,7 @@
 - Submit as small PRs (specific file count / diff line count thresholds according to project definition).
 - Clearly state purpose / background / changes / impact / test steps in PR body, and link to Issue.
 - Do not include secrets or artifacts in PRs.
+- **One release, one CI run.** A release's record is raised once, after every inspection is finished — the external scans included — and that one pull request carries the whole release.
 - A branch name starts with the version its work will ship in: `v<version>`, or `v<version>-<keyword>` with the keyword naming the work. Lower case, digits, dots and hyphens only. No branch without a version. No prefix: a word such as `release` states a status, and a status does not belong in a name. Type is carried by the label, not by the branch name.
 
 ### Recommended (SHOULD)
@@ -168,7 +169,7 @@
 - **Push**: at a judged timing, for its own purpose (backing work up to the remote, making the branch visible); decoupled from raising a PR.
 - **PR**: raised only when the assigned mission is complete and self-verified to a no-rework level — not per file, not rushed.
 - Push and PR serve different purposes and are not performed at the same time.
-- **A pull request roughly once every two days is the guideline.** A PR is a request for review: opening one convenes a review. Open more than the reviewer can read and approval becomes nominal. Keep a version's work on `v<version>` and raise one PR when that version's mission is complete.
+- **A version's work stays on `v<version>`, and one pull request is raised when that version's mission is complete.**
 - **Never press for a merge by claiming the work cannot proceed without one.** Neither this policy nor the shipping inspection says so. A documentation correction rides in the next version's PR.
 - **Do not raise a follow-up PR.** A PR that exists only to fix the previous one would not exist had the previous one been verified first — watch CI go green before handing it over.
 
@@ -178,6 +179,7 @@
 
 ### Prohibited (NG)
 
+- Raising pull requests in excess. **The count of pull requests and CI runs is a cost, not an achievement.**
 - Direct push / deletion / protection removal on main.
 - Force push, in any spelling and on any branch — `-f`, `--force`, `--force-with-lease`, `--mirror`, a `+refspec`, or the equivalent through any API.
 - Zip distribution / starting work from Zip (missing history).
@@ -240,6 +242,46 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 - Prohibited: Merging with stale approval, huge PRs, secret/artifact contamination.
 
 ---
+
+### 5-4. Release process (the order of shipping)
+
+**What "publication" means.** A release is **published** when the shipped artifact is stored in `dist/<version>/` and is available on the releases page, <https://github.com/Kozo2000/XOKSA/releases>. Both conditions together are the definition. **Publication is the last step of a release, and the release is complete at that moment.** Everything a release needs — the source, the build, the signature, every inspection including the external scans, the SBOM and the shipping record — is merged before it, which is what lets one release be carried by one pull request and one CI run.
+
+**The order, and it is strict.**
+
+1. Merge the source change (version numbers, dependencies, anything compiled).
+2. Build the shipped artifact on CI from that merged source.
+3. Sign (and on macOS notarize and staple).
+4. Inspect the signed artifact and obtain the measured result of every stage in [the shipping inspection](../dev-prog/security-assessment.md) §C.1, the external scan results included. **The record is written once every result is in hand.**
+5. Write the §C.4 record and merge it: **one pull request, one CI run.**
+6. Tag the commit that contains the code, and store the artifact in `dist/<version>/`.
+7. Publish: attach the artifact to the release. **The release is complete here.**
+
+**Release build recipe — stated once here, so a §C.4 record names its commit, host and hashes instead of restating the steps.** Restating them is how a step was lost: v2.9.2's record said "`cargo build --release` in `xoksa-setup` staged as the second sidecar", and from v2.9.3 through v2.9.8 five records shortened that to "`xoksa-setup` staged as the second sidecar" — after which a v2.9.9 build staged a 2.9.8 settings binary, because nothing in the written recipe said to build it.
+
+1. `cd webui-leptos && trunk build --release` — the WASM frontend the engine embeds.
+2. `cargo build --release --bin xoksa` — the engine.
+3. `cd xoksa-setup && cargo build --release` — the settings app. **Building it is part of the recipe, not only staging it:** it is a separate workspace that a root-level build never touches, and it ships inside the installer as the second sidecar.
+4. `scripts/bundle-engine.sh` — stages **both** binaries as Tauri sidecars (`bundle.externalBin`). It resolves and checks both before copying either, and refuses to stage a binary that does not report the version in `Cargo.toml`, so a forgotten rebuild fails the bundle instead of shipping.
+5. `cd xoksa-desktop && cargo tauri build` — the installer (with `APPLE_SIGNING_IDENTITY` set on macOS).
+
+**From v2.9.9 the release build runs on CI, not on a developer machine.** `.github/workflows/release-windows.yml` performs steps 1–5 above on a `windows-latest` runner and, before uploading, runs `scripts/check-no-host-paths.sh` over every artifact. The reason is §C.4's v2.9.9 record: rustc bakes each crate's source path into the binary for its panic messages, so a developer-machine build ships the builder's account name, and neither `strip = true` nor `--remap-path-prefix` removes all of it. A local build is still fine for development; it is no longer what gets inspected or shipped.
+
+**From v2.9.11 the Windows release is signed between two CI runs.** `release-windows.yml` builds as above and places the three executables taken from inside its unshipped MSI in `to-sign/`. They are signed on the owner's machine (the key lives in Certum's cloud and cannot reach a runner) and attached to a hand-off draft release. `release-windows-package.yml` then packages the shipped MSI from them without compiling, and the MSI is signed last. The standalone `xoksa-desktop.exe` must not be signed: Tauri stamps three bytes into the copy it packs, which breaks a signature applied beforehand.
+
+**Binding the inspection to its source.** A hash says *which file* was inspected; it does not say *which source produced it*. Two failures during the v2.6.8 release made the gap concrete: a release was published before its source was committed, so `gh release create --target main` tagged a commit that did not contain the code; and a dependency update merged mid-inspection, leaving the first build unreproducible from the merged source. Six rules close it, and every record from v2.7.0 onward follows them.
+
+1. **Build from a committed, clean working tree.** An artifact built over uncommitted edits has no source to name.
+2. **Publish after the merge, never before.**
+3. **Tag the commit that actually contains the code.** A mistagged release is corrected with `git tag -f` and a force push of *the tag ref* — repointing a reference rather than rewriting a branch's history.
+4. **Name the source commit and its branch in the §C.4 record**, beside the artifact hashes.
+5. **If the base moves between the build and the publish, rebuild and re-inspect.** The artifact is bound to one source; a source that has moved is a different source.
+6. **Never delete a release branch.** Squash & Merge folds a branch's commits into one new commit on `main`, so the commit a record names survives **only on that branch** — measured at v2.9.8: `5065da8` (v2.9.7) and `e8b973d` (v2.9.8) are both unreachable from `main` and present only on `origin/release/v2.9.7` and `origin/release/v2.9.8`. Deleting the branch would leave the record pointing at nothing. `deleteBranchOnMerge` is therefore off for this repository.
+7. **A §C.4 heading states dated facts, never a mutable state.** "Not yet shipped" is true until it is not, and nothing makes it change: v2.9.9's record carried it while the release went out **twelve minutes later**, and the other side of the project read it, believed the version was unpublished, and rebuilt a macOS artifact against a source the published one does not match — half a day lost. So a heading carries *when it was inspected* and *when it was published*, both of which stay true; the **current** state lives in one place only, the handover note, which is overwritten rather than appended. **Publishing is not finished until the §C.4 heading carries the publication date**, in both languages.
+
+**Across a repository migration.** This project plans to publish a fresh repository built from `main`'s current tree **without carrying the history**. Every commit a §C.4 record names, and every `release/*` branch holding one, stays behind with that history — and so would any tag, since a tag travels with the commit it points at. The decision recorded here is that **the source repository is kept as a private archive rather than deleted**, so those commits stay reachable: a record written before the migration refers to the archive, not to the published repository. Rule 6 therefore keeps applying *to the archive* — the release branches must survive there — and the first §C.4 record written after the migration states which repository it is bound to, so no record is ambiguous about where its commit lives.
+
+**What is measured, and how, is quality control and lives in [the shipping inspection](../dev-prog/security-assessment.md)** — the inspection stages, the artifact's measured properties, the penetration matrix, the SBOM method and the per-release records. This section holds the process.
 
 ## 6. Reading History and Dates (Basis for Judgment)
 
@@ -430,6 +472,7 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 - 小さな PR で提出する（具体的なファイル数・差分行数の閾値はプロジェクト定義に準じる）。
 - PR 本文に 目的／背景／変更点／影響／テスト手順 を明記し、Issue へ紐付け。
 - 秘密情報・生成物は PR に含めない。
+- **1 リリースにつき CI は 1 回。** リリースの記録は、外部スキャンを含むすべての検査が完了してから 1 本出し、その 1 本がリリース全体を運ぶ。
 - ブランチ名は、その作業を載せる版数から始める（`v<版数>` または `v<版数>-<キーワード>`。キーワードは作業内容）。小文字・数字・ドット・ハイフンのみ。版数の無いブランチは作らない。接頭辞は付けない——`release` のような語は状態を表すものであり、状態を名前に固定しない。種別はラベルで示す。
 
 ### 推奨（SHOULD）
@@ -444,7 +487,7 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 - **プッシュ**：それ自体の目的（作業のリモート退避・ブランチの可視化）のため、頃合いを見て行う。PR を出すこととは切り離す。
 - **PR**：与えられたミッションが完了し、手戻りが無いと自己確認できたレベルで初めて出す。ファイル単位・拙速に出さない。
 - プッシュと PR は目的が異なり、同じタイミングで行わない。
-- **PR は 2 日に 1 回の頻度が目安となる。** PR はレビュー依頼であり、出すたびにレビュー会を開いているのと同じ。読み切れない量を出せば承認は形だけになる。版の作業は `v<版数>` に積み続け、その版のミッションが完了したときに 1 本出す。
+- **版の作業は `v<版数>` に積み続け、その版のミッションが完了したときに 1 本出す。**
 - **「PR を出さないと先に進めない」と言って急かさない。** 本ポリシーにも出荷検査手順にもそのような条項は無い。文書の修正は、次の版の PR に同梱すれば足りる。
 - **後追いの PR を作らない。** 直前の PR の不備を直すだけの PR は、検証してから出していれば存在しない。CI が緑になったことを確認してから渡す。
 
@@ -454,6 +497,7 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 
 ### 禁止（NG）
 
+- PR の乱発。**PR と CI の本数は成果ではなくコストである。**
 - main 直 push／削除／保護解除。
 - force push（綴りを問わず、ブランチを問わず）。`-f`・`--force`・`--force-with-lease`・`--mirror`・`+refspec`、および任意の API による同等の操作。
 - Zip 配布・Zip から作業開始（履歴欠落）。
@@ -516,6 +560,46 @@ Definition of Done：Squash & Merge 済み／Issue クローズ／関連ドキ�
 - 禁止：古い承認のままのマージ（stale approval）、巨大 PR、秘密・生成物の混入。
 
 ---
+
+### 5-4. リリース工程（出荷の順序）
+
+**「公開」とは何か。** リリースが**公開された**とは、出荷する現物が `dist/<版数>/` に保管され、リリースページ <https://github.com/Kozo2000/XOKSA/releases> で入手できる状態になったことをいう。この 2 つが揃った状態を公開と定義する。**公開はリリースの最終工程であり、この時点でリリースは完了する。** リリースに必要なもの——ソース・ビルド・署名・外部スキャンを含むすべての検査・SBOM・出荷検査の記録——は、すべて公開より前にマージする。これにより、1 回のリリースは PR 1 本・CI 1 回で運べる。
+
+**順序。厳守する。**
+
+1. ソースの変更（版数・依存など、コンパイル対象）をマージする。
+2. そのマージ済みソースから、CI で出荷する現物をビルドする。
+3. 署名する（macOS は公証と staple も）。
+4. 署名済みの現物を検査し、[出荷検査](../dev-prog/security-assessment.md) §C.1 の全段階の測定結果を得る。外部スキャンの結果を含む。**記録は、全段階の結果が揃ってから書く。**
+5. §C.4 の記録を書いてマージする。**PR 1 本・CI 1 回。**
+6. 実体を含むコミットにタグを打ち、現物を `dist/<版数>/` に保管する。
+7. 公開する——リリースに現物を添付する。**この時点でリリースは完了する。**
+
+**リリースのビルド recipe — ここに 1 回だけ記す。§C.4 の記録は手順を書き直すのではなく、コミット・host・ハッシュを名乗る。** 書き直しは実際に手順を失わせた：v2.9.2 の記録は「`cargo build --release` in `xoksa-setup` を 2 本目の sidecar として配置」と書いていたが、v2.9.3 から v2.9.8 までの 5 本が「`xoksa-setup` を 2 本目の sidecar として配置」と短縮し、その結果 v2.9.9 のビルドが 2.9.8 の設定アプリを配置した——書かれた recipe のどこにも「ビルドする」と無かったためである。
+
+1. `cd webui-leptos && trunk build --release` — エンジンが内蔵する WASM フロントエンド。
+2. `cargo build --release --bin xoksa` — エンジン。
+3. `cd xoksa-setup && cargo build --release` — 設定アプリ。**配置するだけでなくビルドすることが recipe の一部である**：ルートのビルドが触らない別 workspace であり、2 本目の sidecar としてインストーラに同梱される。
+4. `scripts/bundle-engine.sh` — **両方**を Tauri の sidecar として配置する（`bundle.externalBin`）。どちらかを複製する前に両方を解決・検査し、`Cargo.toml` の版数を報告しない現物は配置を拒否するので、ビルド忘れは出荷ではなくバンドルの失敗になる。
+5. `cd xoksa-desktop && cargo tauri build` — インストーラ（macOS では `APPLE_SIGNING_IDENTITY` を設定）。
+
+**v2.9.9 以降、リリースビルドは開発機ではなく CI で行う。** `.github/workflows/release-windows.yml` が上記 1〜5 を `windows-latest` ランナーで実行し、アップロード前に全現物へ `scripts/check-no-host-paths.sh` を掛ける。理由は §C.4 の v2.9.9 の記録にある——rustc は panic メッセージのために各クレートのソースパスをバイナリへ焼き込むため、開発機でのビルドはビルド者のアカウント名を出荷してしまい、`strip = true` でも `--remap-path-prefix` でも全部は消えない。開発目的のローカルビルドは従来どおりでよいが、検査と出荷の対象ではなくなった。
+
+**v2.9.11 以降、Windows のリリースは 2 回の CI の間で署名する。** `release-windows.yml` が上記のとおりビルドし、出荷しない MSI の中から取り出した実行ファイル 3 本を `to-sign/` に置く。これをオーナーの端末で署名し（鍵は Certum のクラウドにあり、ランナーからは届かない）、受け渡し専用の下書きリリースに置く。`release-windows-package.yml` がそれらからコンパイルせずに出荷用の MSI を組み、最後に MSI に署名する。単体の `xoksa-desktop.exe` には署名してはならない——Tauri は梱包するコピーに 3 バイトを刻むため、その前に付けた署名が壊れる。
+
+**検査をソースに束縛する。** ハッシュが示すのは*どのファイルを検査したか*であって、*どのソースから生まれたか*ではない。v2.6.8 のリリース作業で、この隙間が実際に 2 つの失敗として現れた。ソースをコミットする前にリリースを公開したため `gh release create --target main` が**コードを含まないコミット**にタグを打ったこと。そして検査の最中に依存の更新がマージされ、最初のビルドがマージ後のソースから再現できなくなったことである。以下の 6 項目でこれを塞ぐ。v2.7.0 以降の記録はすべてこれに従っている。
+
+1. **コミット済み・作業ツリー clean からビルドする。** 未コミットの編集の上で作った現物には、名乗るべきソースが無い。
+2. **公開はマージの後に行う。** 順序を逆にしない。
+3. **タグは実体を含むコミットに打つ。** 打ち間違えたリリースは `git tag -f` と**タグ ref** の force push で是正する——ブランチの履歴を書き換えるのではなく、参照を付け替える操作である。
+4. **§C.4 の記録に、ソースコミットとそのブランチを現物のハッシュと並べて明記する。**
+5. **ビルドから公開までの間にベースが動いたら、作り直して再検査する。** 現物は 1 つのソースに束縛される。動いたソースは別のソースである。
+6. **release ブランチは削除しない。** Squash & Merge はブランチのコミットを畳んで `main` に新しい 1 個を作るため、記録が名指しするコミットは**そのブランチにしか残らない**——v2.9.8 時点の実測で、`5065da8`（v2.9.7）と `e8b973d`（v2.9.8）はいずれも `main` から到達不能で、`origin/release/v2.9.7` と `origin/release/v2.9.8` にのみ存在する。ブランチを消すと記録の参照先が消える。本リポジトリで `deleteBranchOnMerge` を無効にしているのはこのためである。
+7. **§C.4 の見出しには日付つきの事実だけを書き、可変の状態を書かない。**「未出荷」は、そうでなくなるまでは真で、変える仕掛けが無い。実際に v2.9.9 の記録はこれを載せたまま**12 分後にリリースが出て**、反対側（macOS）がそれを読んで未公開と信じ、公開物と一致しないソースから現物を作り直した——半日の損失。よって見出しには**いつ検査したか**と**いつ公開したか**——どちらも後から変わらない——を書く。**現在の**状態は 1 箇所（引継ぎ書）にだけ置き、追記ではなく上書きする。**公開は、§C.4 の見出しに公開日が入るまで終わっていない**（日英とも）。
+
+**リポジトリの引っ越しをまたぐ場合。** 本プロジェクトは、`main` の現在のツリーだけを新しいリポジトリとして公開し、**履歴は持ち込まない**計画である。§C.4 の記録が名指しするコミットも、それを保持する `release/*` ブランチも、履歴とともに元のリポジトリに残る（タグも同様である。タグは指し示すコミットと一緒にしか移動しない）。ここで記録する判断は、**引っ越し元を削除せず非公開のアーカイブとして残す**ことである。したがってそれらのコミットは引き続き到達可能であり、引っ越し前に書かれた記録が指すのは公開リポジトリではなく**このアーカイブ**である。規定 6 はアーカイブに対して効き続ける——release ブランチはそこで生き残らなければならない——また、引っ越し後に最初に書く §C.4 の記録には、どのリポジトリに束縛されているかを明記する。これにより、どの記録も自分のコミットの在り処が曖昧にならない。
+
+**何をどう測るかは品質管理であり、[出荷検査](../dev-prog/security-assessment.md) に置く**——検査の段階、現物の実測された性質、ペネトレーション行列、SBOM の作り方、リリースごとの記録。本節が持つのは工程である。
 
 ## 6. 履歴と日付の見方（判断の拠り所）
 
