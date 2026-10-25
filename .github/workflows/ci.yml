@@ -1,13 +1,11 @@
 name: CI
 
 on:
-  # Work branches are covered by their pull request, so they are deliberately not
-  # listed here: with both triggers a branch that has an open PR runs the whole
-  # workflow twice per push, doubling Actions minutes for no extra coverage.
-  push:
-    branches: [ "main", "release/**" ]
-  pull_request:
-    branches: [ "main" ]
+  # These gates are the ones `scripts/check.sh` runs, and the shipping
+  # inspection runs that script against the artifact's own source. Nothing
+  # starts them automatically; they are started by hand when a run on their
+  # own is wanted.
+  workflow_dispatch:
 
 # A push that supersedes an earlier one cancels its run instead of letting both
 # finish — several such pairs are visible in this repo's run history, each paying
@@ -18,7 +16,7 @@ concurrency:
 
 # Least privilege. This workflow only reads the repo and uses NO secrets, so a
 # malicious fork PR (which runs read-only with no secret access under the
-# `pull_request` trigger) has nothing to escalate or exfiltrate.
+# push trigger) has nothing to escalate or exfiltrate.
 permissions:
   contents: read
 

@@ -18,6 +18,24 @@ name: Release build (Windows)
 # hashes; tagging and publishing stay manual, after the merge (§C.1 rule 2).
 
 on:
+  # Source landing on `main` builds the artifact that will be signed, inspected
+  # and shipped — the build is of what was merged, not of a branch that may
+  # differ from it. Documentation and SBOM changes start no build.
+  push:
+    branches: [ 'main' ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'build.rs'
+      - 'webui-leptos/**'
+      - 'xoksa-desktop/**'
+      - 'xoksa-setup/**'
+      - 'xoksa-paths/**'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - 'deny.toml'
+      - 'rust-toolchain.toml'
+      - 'scripts/**'
   workflow_dispatch:
     inputs:
       ref:
