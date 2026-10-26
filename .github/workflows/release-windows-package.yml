@@ -1,31 +1,35 @@
 name: Package signed installer (Windows)
 
-# Second half of the Windows release. release-windows.yml compiles everything and
+# Called within the Windows release run. release-windows.yml compiles everything and
 # leaves in its artifact the three executables as they sit inside the installer
 # (to-sign/). Those are signed on the owner's machine — the key lives in Certum's
 # cloud (SimplySign) and is unlocked with a one-time code from the owner's phone,
-# so no runner can sign — and attached to a draft release. This run takes them
-# back and packages the installer. Nothing is compiled here.
+# so no runner can sign — and attached to a draft release. Environment approval
+# resumes that same workflow run and packages the installer without compiling.
 #
 # It refuses unless every executable carries a valid signature, is the first
 # run's executable once the signature is removed, and comes out of the finished
 # MSI byte for byte. It does not sign the MSI and does not publish (§C.1).
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      build_run:
-        description: "Run ID of the 'Release build (Windows)' run whose executables were signed"
+      artifact_name:
+        description: "Unsigned artifact uploaded by the caller's build job"
+        required: true
+        type: string
+      source_sha:
+        description: "Commit built by the caller's build job"
+        required: true
+        type: string
+      version:
+        description: "Version built by the caller's build job"
         required: true
         type: string
       release_tag:
         description: "Draft release holding the signed executables"
         required: true
         type: string
-
-concurrency:
-  group: ${{ github.workflow }}-${{ inputs.build_run }}
-  cancel-in-progress: false
 
 permissions:
   contents: read  # checkout; the draft release is read by fetch-signed alone
@@ -36,7 +40,7 @@ env:
   # Same pin as release-windows.yml, so the packaging step is the same tool.
   TAURI_CLI_VERSION: "2.11.4"
   GH_TOKEN: ${{ github.token }}
-  BUILD_RUN: ${{ inputs.build_run }}
+  BUILD_RUN: ${{ github.run_id }}
   RELEASE_TAG: ${{ inputs.release_tag }}
 
 jobs:
@@ -47,12 +51,28 @@ jobs:
   fetch-signed:
     name: Fetch the signed executables
     runs-on: ubuntu-latest
+    environment: windows-release-signing
     permissions:
       contents: write
+      actions: read
     steps:
+      # An absent/unprotected environment must not silently skip owner approval.
+      - name: Gate — the owner approved this run
+        shell: bash
+        env:
+          OWNER_ID: ${{ github.repository_owner_id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals" \
+            --jq "any(.[]; .state == \"approved\" and (.user.id | tostring) == \"$OWNER_ID\" and any(.environments[]; .name == \"windows-release-signing\"))" \
+            | grep -qx true \
+            || { echo 'No owner approval for windows-release-signing on this run' >&2; exit 1; }
+
       - name: Fetch the signed executables from the draft release
         shell: bash
-        run: gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.exe' --dir signed
+        run: |
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft | grep -qx true \
+            || { echo 'The signing hand-off must be a draft release' >&2; exit 1; }
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'xoksa.exe' --pattern 'xoksa-setup.exe' --pattern 'xoksa-desktop.exe' --dir signed
 
       - name: Hand them to the packaging job
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -66,22 +86,35 @@ jobs:
     name: Package the signed executables
     needs: fetch-signed
     runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: read
 
     steps:
       # Into RUNNER_TEMP, so the checkout below cannot clean it away.
-      - name: Fetch the first run's artifact
+      - name: Fetch this run's unsigned artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ runner.temp }}/build
+
+      - name: Verify the build manifest
         id: src
         shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.source_sha }}
+          EXPECTED_VERSION: ${{ inputs.version }}
         run: |
-          gh run view "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --json workflowName,conclusion \
-            -q 'select(.workflowName == "Release build (Windows)" and .conclusion == "success")' | grep -q . \
-            || { echo "run $BUILD_RUN is not a successful 'Release build (Windows)'" >&2; exit 1; }
-          gh run download "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/build"
-          sums="$(find "$RUNNER_TEMP/build" -name SHA256SUMS | head -1)"
-          test -n "$sums" || { echo "no SHA256SUMS in run $BUILD_RUN" >&2; exit 1; }
-          echo "dir=$(dirname "$sums")" >> "$GITHUB_OUTPUT"
-          echo "sha=$(sed -n 's/^# commit //p' "$sums")" >> "$GITHUB_OUTPUT"
-          echo "version=$(sed -n 's/^# XOKSA \([^ ]*\) .*/\1/p' "$sums")" >> "$GITHUB_OUTPUT"
+          cd "$RUNNER_TEMP/build"
+          test -f SHA256SUMS || { echo 'Missing build manifest' >&2; exit 1; }
+          sha="$(sed -n 's/^# commit //p' SHA256SUMS)"
+          version="$(sed -n 's/^# XOKSA \([^ ]*\) .*/\1/p' SHA256SUMS)"
+          test "$sha" = "$EXPECTED_SHA" && test "$version" = "$EXPECTED_VERSION" \
+            || { echo 'Manifest differs from the caller build' >&2; exit 1; }
+          sha256sum -c SHA256SUMS
+          echo "dir=$RUNNER_TEMP/build" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       # Third-party actions are pinned to a commit SHA, as in release-windows.yml.
       - name: Checkout the commit the first run built

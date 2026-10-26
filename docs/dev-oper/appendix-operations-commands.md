@@ -111,11 +111,11 @@ gh pr comment -b "@<reviewer1> @<reviewer2> レビューお願いします"
 5-2 PRライフサイクル — ready-for-review（判定）
 ＃対象者：レビュアー / Target: Reviewer
 ＃作業内容：承認 or 修正要求の判定 / Work: Approve or request changes
-＃注意事項：CI 成功／秘密・生成物なし／差分過大は差し戻し / Notes: CI must pass / no secrets or artifacts / reject oversized diffs
+＃注意事項：ローカル検証結果／秘密・生成物なし／差分過大は差し戻し / Notes: verify local results / no secrets or artifacts / reject oversized diffs
 
-gh pr checks --watch
+gh pr view --json body,reviews
 ＃対象：レビュアー / Target: Reviewer
-＃必須チェック（CI 等）の状況を確認 / Check status of required checks (CI, etc.)
+＃ローカル検証結果とレビューを確認。出荷 CI はマージ後に起動する。 / Check local verification results and reviews. Release CI starts after merge.
 
 gh pr review --approve -b "LGTM"
 ＃対象：レビュアー / Target: Reviewer
@@ -179,7 +179,7 @@ gh pr comment -b "指摘対応しました。再レビューお願いします"
 5-2 PRライフサイクル — approved → merge-ready 引き渡し
 ＃対象者：開発者 / Target: Developer
 ＃作業内容：管理者のマージ待ちへ移行 / Work: Move to waiting for maintainer merge
-＃注意事項：承認失効させる追加コミットを止める／CI 緑を維持 / Notes: stop adding commits that would invalidate approval / keep CI green
+＃注意事項：承認失効させる追加コミットを止める／ローカル検証結果を維持 / Notes: stop adding commits that would invalidate approval / retain local verification results
 
 gh pr edit --add-label "status:merge-ready"
 ＃対象：開発者 / Target: Developer
@@ -197,7 +197,7 @@ gh pr comment -b "@maintainers merge ready"
 5-2 PRライフサイクル — merge-ready の処理（マージ）
 ＃対象者：管理者 / Target: Maintainer
 ＃作業内容：Squash & Merge／処理順の公開／ブランチ削除 / Work: Squash & Merge / publish processing order / delete branch
-＃注意事項：Auto-merge は使わない／承認・CI の有効性を再確認 / Notes: do not use Auto-merge / re-verify approval and CI validity
+＃注意事項：Auto-merge は使わない／承認とローカル検証結果を再確認 / Notes: do not use Auto-merge / re-verify approval and local verification results
 
 gh issue comment <queue-issue-number> -b "queued: #<pr-number>"
 ＃対象：管理者 / Target: Maintainer

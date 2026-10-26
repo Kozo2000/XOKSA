@@ -215,31 +215,9 @@ A shipping inspection binds to **one frozen local artifact by hash**: build once
 
 **What "deterministic" covers for the WASM, measured.** Two runs of the same workflow on the same runner produce byte-identical output — measured at v2.9.10 on macOS, where two builds of the same effective source gave the same four hashes. Two *operating systems* do not: 2.9.10's macOS frontend is `xoksa-webui-2fc5f86e0258a0ca` (`4aa431b1…`, 710,967 B) and its Windows frontend is `xoksa-webui-22fbb44a3ccaa34a` (`983596d5…`, 724,577 B), from the same source and the same `webui-leptos/Cargo.lock`. This is stated because a reader comparing the two §C.4 records would otherwise read the differing hashes as a contradiction: there is **one** WASM inventory, because the dependency set is host-independent, and **two** WASM binaries, because the builds are not.
 
-**Release build recipe — stated once here, so a §C.4 record names its commit, host and hashes instead of restating the steps.** Restating them is how a step was lost: v2.9.2's record said "`cargo build --release` in `xoksa-setup` staged as the second sidecar", and from v2.9.3 through v2.9.8 five records shortened that to "`xoksa-setup` staged as the second sidecar" — after which a v2.9.9 build staged a 2.9.8 settings binary, because nothing in the written recipe said to build it.
-
-1. `cd webui-leptos && trunk build --release` — the WASM frontend the engine embeds.
-2. `cargo build --release --bin xoksa` — the engine.
-3. `cd xoksa-setup && cargo build --release` — the settings app. **Building it is part of the recipe, not only staging it:** it is a separate workspace that a root-level build never touches, and it ships inside the installer as the second sidecar.
-4. `scripts/bundle-engine.sh` — stages **both** binaries as Tauri sidecars (`bundle.externalBin`). It resolves and checks both before copying either, and refuses to stage a binary that does not report the version in `Cargo.toml`, so a forgotten rebuild fails the bundle instead of shipping.
-5. `cd xoksa-desktop && cargo tauri build` — the installer (with `APPLE_SIGNING_IDENTITY` set on macOS).
-
-**From v2.9.9 the release build runs on CI, not on a developer machine.** `.github/workflows/release-windows.yml` performs steps 1–5 above on a `windows-latest` runner and, before uploading, runs `scripts/check-no-host-paths.sh` over every artifact. The reason is §C.4's v2.9.9 record: rustc bakes each crate's source path into the binary for its panic messages, so a developer-machine build ships the builder's account name, and neither `strip = true` nor `--remap-path-prefix` removes all of it. A local build is still fine for development; it is no longer what gets inspected or shipped.
-
-**From v2.9.11 the Windows release is signed between two CI runs.** `release-windows.yml` builds as above and places the three executables taken from inside its unshipped MSI in `to-sign/`. They are signed on the owner's machine (the key lives in Certum's cloud and cannot reach a runner) and attached to a hand-off draft release. `release-windows-package.yml` then packages the shipped MSI from them without compiling, and the MSI is signed last. The standalone `xoksa-desktop.exe` must not be signed: Tauri stamps three bytes into the copy it packs, which breaks a signature applied beforehand.
-
 **Start the inspected engine from a directory that contains no `webui-leptos/dist`.** `--web-dir` defaults to that **relative** path, and `read_asset` prefers an on-disk file over the binary's embedded copy — intended for development, but it means an engine launched from the repository root serves the working tree's frontend instead of its own. An inspection run that way is not bound to the artifact: this release's first ZAP scan had to be discarded because it scanned a stale local frontend while the engine under test was the CI one. Whatever the scan, confirm the binding by fetching `/` and checking the `xoksa-webui-<hash>` it references against the WASM in the artifact set.
 
-**Binding the inspection to its source.** A hash says *which file* was inspected; it does not say *which source produced it*. Two failures during the v2.6.8 release made the gap concrete: a release was published before its source was committed, so `gh release create --target main` tagged a commit that did not contain the code; and a dependency update merged mid-inspection, leaving the first build unreproducible from the merged source. Six rules close it, and every record from v2.7.0 onward follows them.
-
-1. **Build from a committed, clean working tree.** An artifact built over uncommitted edits has no source to name.
-2. **Publish after the merge, never before.**
-3. **Tag the commit that actually contains the code.** A mistagged release is corrected with `git tag -f` and a force push of *the tag ref* — repointing a reference rather than rewriting a branch's history.
-4. **Name the source commit and its branch in the §C.4 record**, beside the artifact hashes.
-5. **If the base moves between the build and the publish, rebuild and re-inspect.** The artifact is bound to one source; a source that has moved is a different source.
-6. **Never delete a release branch.** Squash & Merge folds a branch's commits into one new commit on `main`, so the commit a record names survives **only on that branch** — measured at v2.9.8: `5065da8` (v2.9.7) and `e8b973d` (v2.9.8) are both unreachable from `main` and present only on `origin/release/v2.9.7` and `origin/release/v2.9.8`. Deleting the branch would leave the record pointing at nothing. `deleteBranchOnMerge` is therefore off for this repository.
-7. **A §C.4 heading states dated facts, never a mutable state.** "Not yet shipped" is true until it is not, and nothing makes it change: v2.9.9's record carried it while the release went out **twelve minutes later**, and the other side of the project read it, believed the version was unpublished, and rebuilt a macOS artifact against a source the published one does not match — half a day lost. So a heading carries *when it was inspected* and *when it was published*, both of which stay true; the **current** state lives in one place only, the handover note, which is overwritten rather than appended. **Publishing is not finished until the §C.4 heading carries the publication date**, in both languages.
-
-**Across a repository migration.** This project plans to publish a fresh repository built from `main`'s current tree **without carrying the history**. Every commit a §C.4 record names, and every `release/*` branch holding one, stays behind with that history — and so would any tag, since a tag travels with the commit it points at. The decision recorded here is that **the source repository is kept as a private archive rather than deleted**, so those commits stay reachable: a record written before the migration refers to the archive, not to the published repository. Rule 6 therefore keeps applying *to the archive* — the release branches must survive there — and the first §C.4 record written after the migration states which repository it is bound to, so no record is ambiguous about where its commit lives.
+**How a release is built, signed, ordered and published is process, and lives in the [GitHub operations policy](../dev-oper/github-operations-policy.md) §5-4** — the build recipe, the rule that the build runs on CI, the signing order, the seven rules that bind an artifact to its source, and the repository-migration note. This document keeps what is measured: the stages above, the artifact's properties, how an inspection is run, and the records in §C.4. A §C.4 record citing "§C.1 rule 5" means rule 5 of that section.
 
 ## C.2 Penetration-test matrix (measured against the frozen binary)
 
@@ -272,7 +250,7 @@ Two requirements: (1) no developer absolute path in the SBOM (editing the output
 tree of `Kozo2000/xoksa-dev` at `9d05cc7` — **without its history** — and that is the first commit
 here. Every record written before the migration (v2.9.10 and earlier) names commits and
 `release/*` branches that exist only in `Kozo2000/xoksa-dev`, which is kept as a **private archive rather than
-deleted** precisely so they stay reachable (§C.1, "Across a repository migration").
+deleted** precisely so they stay reachable ([the operations policy](../dev-oper/github-operations-policy.md) §5-4, "Across a repository migration").
 A record's tag line is read the same way: `v2.9.10` names `b3ef8e1` in the archive, and the tag
 of the same name here points at this repository's own initial commit `d61ab53`. Its program is
 identical to the archive's `9d05cc7`; the two differ only in documentation (four Markdown files)
@@ -1319,31 +1297,9 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 
 **WASM の「決定的」が覆う範囲（実測）。** 同一 runner で同じ workflow を 2 回走らせた出力はバイト一致する——v2.9.10 の macOS で実測しており、実質同一ソースの 2 ビルドが同じ 4 つのハッシュを与えた。**OS をまたぐと一致しない：** 2.9.10 の macOS フロントエンドは `xoksa-webui-2fc5f86e0258a0ca`（`4aa431b1…`・710,967 B）、Windows フロントエンドは `xoksa-webui-22fbb44a3ccaa34a`（`983596d5…`・724,577 B）であり、ソースも `webui-leptos/Cargo.lock` も同じである。これを明記するのは、2 つの §C.4 記録を見比べた読み手が、異なるハッシュを矛盾と読むからである——インベントリが **1 本**なのは依存集合がホスト非依存だからであり、WASM のバイナリが **2 本**あるのはビルドがそうでないからである。
 
-**リリースのビルド recipe — ここに 1 回だけ記す。§C.4 の記録は手順を書き直すのではなく、コミット・host・ハッシュを名乗る。** 書き直しは実際に手順を失わせた：v2.9.2 の記録は「`cargo build --release` in `xoksa-setup` を 2 本目の sidecar として配置」と書いていたが、v2.9.3 から v2.9.8 までの 5 本が「`xoksa-setup` を 2 本目の sidecar として配置」と短縮し、その結果 v2.9.9 のビルドが 2.9.8 の設定アプリを配置した——書かれた recipe のどこにも「ビルドする」と無かったためである。
-
-1. `cd webui-leptos && trunk build --release` — エンジンが内蔵する WASM フロントエンド。
-2. `cargo build --release --bin xoksa` — エンジン。
-3. `cd xoksa-setup && cargo build --release` — 設定アプリ。**配置するだけでなくビルドすることが recipe の一部である**：ルートのビルドが触らない別 workspace であり、2 本目の sidecar としてインストーラに同梱される。
-4. `scripts/bundle-engine.sh` — **両方**を Tauri の sidecar として配置する（`bundle.externalBin`）。どちらかを複製する前に両方を解決・検査し、`Cargo.toml` の版数を報告しない現物は配置を拒否するので、ビルド忘れは出荷ではなくバンドルの失敗になる。
-5. `cd xoksa-desktop && cargo tauri build` — インストーラ（macOS では `APPLE_SIGNING_IDENTITY` を設定）。
-
-**v2.9.9 以降、リリースビルドは開発機ではなく CI で行う。** `.github/workflows/release-windows.yml` が上記 1〜5 を `windows-latest` ランナーで実行し、アップロード前に全現物へ `scripts/check-no-host-paths.sh` を掛ける。理由は §C.4 の v2.9.9 の記録にある——rustc は panic メッセージのために各クレートのソースパスをバイナリへ焼き込むため、開発機でのビルドはビルド者のアカウント名を出荷してしまい、`strip = true` でも `--remap-path-prefix` でも全部は消えない。開発目的のローカルビルドは従来どおりでよいが、検査と出荷の対象ではなくなった。
-
-**v2.9.11 以降、Windows のリリースは 2 回の CI の間で署名する。** `release-windows.yml` が上記のとおりビルドし、出荷しない MSI の中から取り出した実行ファイル 3 本を `to-sign/` に置く。これをオーナーの端末で署名し（鍵は Certum のクラウドにあり、ランナーからは届かない）、受け渡し専用の下書きリリースに置く。`release-windows-package.yml` がそれらからコンパイルせずに出荷用の MSI を組み、最後に MSI に署名する。単体の `xoksa-desktop.exe` には署名してはならない——Tauri は梱包するコピーに 3 バイトを刻むため、その前に付けた署名が壊れる。
-
 **検査するエンジンは、`webui-leptos/dist` が存在しないディレクトリから起動する。** `--web-dir` の既定はこの**相対パス**であり、`read_asset` はディスク上のファイルをバイナリの埋め込みより優先する——開発時の利便性のためだが、結果としてリポジトリ直下から起動したエンジンは自身の埋め込みではなく作業ツリーのフロントエンドを配信する。その状態での検査は現物に束縛されない：本リリースの最初の ZAP スキャンは、検査対象が CI 現物であるにもかかわらず古いローカルのフロントエンドを走査していたため破棄した。どのスキャンでも、`/` を取得して参照されている `xoksa-webui-<hash>` を現物の WASM と突き合わせ、束縛を確認すること。
 
-**検査をソースに束縛する。** ハッシュが示すのは*どのファイルを検査したか*であって、*どのソースから生まれたか*ではない。v2.6.8 のリリース作業で、この隙間が実際に 2 つの失敗として現れた。ソースをコミットする前にリリースを公開したため `gh release create --target main` が**コードを含まないコミット**にタグを打ったこと。そして検査の最中に依存の更新がマージされ、最初のビルドがマージ後のソースから再現できなくなったことである。以下の 6 項目でこれを塞ぐ。v2.7.0 以降の記録はすべてこれに従っている。
-
-1. **コミット済み・作業ツリー clean からビルドする。** 未コミットの編集の上で作った現物には、名乗るべきソースが無い。
-2. **公開はマージの後に行う。** 順序を逆にしない。
-3. **タグは実体を含むコミットに打つ。** 打ち間違えたリリースは `git tag -f` と**タグ ref** の force push で是正する——ブランチの履歴を書き換えるのではなく、参照を付け替える操作である。
-4. **§C.4 の記録に、ソースコミットとそのブランチを現物のハッシュと並べて明記する。**
-5. **ビルドから公開までの間にベースが動いたら、作り直して再検査する。** 現物は 1 つのソースに束縛される。動いたソースは別のソースである。
-6. **release ブランチは削除しない。** Squash & Merge はブランチのコミットを畳んで `main` に新しい 1 個を作るため、記録が名指しするコミットは**そのブランチにしか残らない**——v2.9.8 時点の実測で、`5065da8`（v2.9.7）と `e8b973d`（v2.9.8）はいずれも `main` から到達不能で、`origin/release/v2.9.7` と `origin/release/v2.9.8` にのみ存在する。ブランチを消すと記録の参照先が消える。本リポジトリで `deleteBranchOnMerge` を無効にしているのはこのためである。
-7. **§C.4 の見出しには日付つきの事実だけを書き、可変の状態を書かない。**「未出荷」は、そうでなくなるまでは真で、変える仕掛けが無い。実際に v2.9.9 の記録はこれを載せたまま**12 分後にリリースが出て**、反対側（macOS）がそれを読んで未公開と信じ、公開物と一致しないソースから現物を作り直した——半日の損失。よって見出しには**いつ検査したか**と**いつ公開したか**——どちらも後から変わらない——を書く。**現在の**状態は 1 箇所（引継ぎ書）にだけ置き、追記ではなく上書きする。**公開は、§C.4 の見出しに公開日が入るまで終わっていない**（日英とも）。
-
-**リポジトリの引っ越しをまたぐ場合。** 本プロジェクトは、`main` の現在のツリーだけを新しいリポジトリとして公開し、**履歴は持ち込まない**計画である。§C.4 の記録が名指しするコミットも、それを保持する `release/*` ブランチも、履歴とともに元のリポジトリに残る（タグも同様である。タグは指し示すコミットと一緒にしか移動しない）。ここで記録する判断は、**引っ越し元を削除せず非公開のアーカイブとして残す**ことである。したがってそれらのコミットは引き続き到達可能であり、引っ越し前に書かれた記録が指すのは公開リポジトリではなく**このアーカイブ**である。規定 6 はアーカイブに対して効き続ける——release ブランチはそこで生き残らなければならない——また、引っ越し後に最初に書く §C.4 の記録には、どのリポジトリに束縛されているかを明記する。これにより、どの記録も自分のコミットの在り処が曖昧にならない。
+**リリースをどう作り、署名し、どの順で公開するかは工程であり、[GitHub 運用ポリシー](../dev-oper/github-operations-policy.md) §5-4 に置く**——ビルドの recipe、CI でビルドする規定、署名を挟む順序、現物をソースに束縛する 7 つの規則、リポジトリ引っ越し時の扱い。本書が持つのは測るもの——上の段階表、現物の性質、検査の実施方法、§C.4 の記録である。§C.4 の記録にある「§C.1 規則 5」は、移動先の規則 5 を指す。
 
 ## C.2 ペネトレ・マトリクス（凍結現物に対し測定）
 

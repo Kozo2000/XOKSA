@@ -117,7 +117,7 @@ xoksa runs as a **local, single-user tool**. The design defends the boundaries b
 **In scope — attackers the design defends against:**
 - **A malicious web page open in the same browser** — the primary threat for the loopback default: drive-by requests / CSRF against `localhost`, and attempts to reach another session's data. Countered by per-client session isolation, `SameSite=Strict` cookies, server-side origin checks, and the `Json<T>` content-type gate (§4).
 - **Malicious upstream data** — news titles/URLs and market feeds are untrusted input rendered in the browser. Countered by output-encoding + a strict CSP, URL scheme-checking, and treating news as non-SOT "candidate" material (§§1, 4). Where the host is not fixed in code — the Ollama path, plaintext HTTP to a host the user configures — the response body is also size-capped **as it arrives decoded**: `reqwest` requests and inflates compressed bodies by default, and a declared `Content-Length` counts only the compressed bytes, so a small body can otherwise expand without bound (measured: 406 KB → 202 MB → 784 MB RSS).
-- **A compromised or vulnerable dependency** — countered by SCA (`cargo audit` + `cargo deny` for advisories **and** license/source compliance, plus `cargo machete` to prune unused deps, on every push) and memory-safe Rust with **`#![forbid(unsafe_code)]`** (compiler-enforced — xoksa's own code contains no `unsafe`); release builds are `--locked`, and a CycloneDX SBOM (`sbom/`) — generated from a throwaway `cargo auditable` build that is not shipped — inventories every component for downstream analysis.
+- **A compromised or vulnerable dependency** — countered by SCA (`cargo audit` + `cargo deny` for advisories **and** license/source compliance, plus `cargo machete` to prune unused deps, locally before a push) and memory-safe Rust with **`#![forbid(unsafe_code)]`** (compiler-enforced — xoksa's own code contains no `unsafe`); release builds are `--locked`, and a CycloneDX SBOM (`sbom/`) — generated from a throwaway `cargo auditable` build that is not shipped — inventories every component for downstream analysis.
 - **Local disk / log inspection** — countered by keeping API keys in the OS keyring (never on disk in plaintext, zeroized in memory), never logging secret values, and `--private` no-trace sessions (§2).
 - **A malicious or weak LLM response** — the model can only *explain* program-computed values; an integrity guard drops any figure it invents, and forecasts are labeled non-SOT (§1).
 - **A tampered download** — countered by a published SHA-256 per artifact and by binding the shipping inspection to that hash (§4, [security-assessment.md](./security-assessment.md)).
@@ -268,7 +268,7 @@ API keys are important assets, and the design minimizes their exposure time.
 
 To manage the risk of known vulnerabilities lurking in dependent libraries, scanning using the RustSec advisory database is incorporated into the development process.
 
-- **Continuous verification**: `cargo audit` is run against all dependent libraries on every push, maintaining a response system when vulnerabilities are reported. `cargo deny` runs beside it on the same trigger, covering what an advisory scan does not: **licence and source compliance**. A new transitive dependency can arrive under a licence the allowlist has never been asked about, which is a release-blocking fact that no test or lint reports. `cargo machete` prunes unused dependencies on the same run.
+- **Continuous verification**: before a push, `scripts/check.sh` runs the required local source checks, including `cargo audit` over the dependent libraries. A missing tool is not a passing scan. The scheduled advisory workflow also remains active. `cargo deny` runs in the same local inspection, covering what an advisory scan does not: **licence and source compliance**. A new transitive dependency can arrive under a licence the allowlist has never been asked about, which is a release-blocking fact that no test or lint reports. `cargo machete` prunes unused dependencies in the same local inspection.
 - **Publication of scan results**: per-release SCA results, bound to each artifact's hash, are recorded in the [shipping inspection](./security-assessment.md).
 
 #### SBOM (Software Bill of Materials) Provision
@@ -502,7 +502,7 @@ xoksa は**ローカル・単一ユーザのツール**として動作する。�
 **想定する攻撃者（in scope）:**
 - **同一ブラウザで開いた悪意あるページ** — ループバック既定の主要脅威：`localhost` へのドライブバイ/CSRF、別セッションのデータへの到達試行。クライアント別セッション分離・`SameSite=Strict` cookie・サーバ側 Origin 検査・`Json<T>` の Content-Type ゲートで対処（§4）。
 - **悪意ある上流データ** — ニュースのタイトル/URL・市場データはブラウザに描画される非信頼入力。出力エスケープ＋strict CSP・URL スキーム検査・ニュースを非SOTの「候補」層に留める設計で対処（§§1, 4）。ホストがコード固定でない経路——Ollama（平文 HTTP・接続先は利用者設定）——では、応答本体にも**展開後のバイト数で**上限を置く。`reqwest` は既定で圧縮本体を要求して展開し、宣言された `Content-Length` は圧縮後のバイト数しか表さないため、小さな本体が無制限に膨らみ得る（実測：406 KB → 展開 202 MB → RSS 784 MB）。
-- **侵害された/脆弱な依存ライブラリ** — SCA（`cargo audit`＋`cargo deny`＝advisories **及び** ライセンス/ソース遵守、加えて未使用依存を刈る `cargo machete`、毎 push）と、**`#![forbid(unsafe_code)]`**（コンパイラ強制＝xoksa 自コードに `unsafe` なし）のメモリ安全な Rust で対処。リリースビルドは `--locked`。CycloneDX SBOM（`sbom/`）は、出荷しない使い捨ての `cargo auditable` ビルドから生成し、全コンポーネントをインベントリ化して下流解析に供する。
+- **侵害された/脆弱な依存ライブラリ** — SCA（`cargo audit`＋`cargo deny`＝advisories **及び** ライセンス/ソース遵守、加えて未使用依存を刈る `cargo machete`、push 前のローカル検査）と、**`#![forbid(unsafe_code)]`**（コンパイラ強制＝xoksa 自コードに `unsafe` なし）のメモリ安全な Rust で対処。リリースビルドは `--locked`。CycloneDX SBOM（`sbom/`）は、出荷しない使い捨ての `cargo auditable` ビルドから生成し、全コンポーネントをインベントリ化して下流解析に供する。
 - **ローカルディスク/ログの覗き見** — API キーを OS キーチェーンに保管（平文でディスクに置かず、メモリ上は zeroize）、秘密値をログに出さない、`--private` 無痕跡セッションで対処（§2）。
 - **悪意ある/性能の低い LLM 応答** — モデルはプログラム算出値を*説明*できるだけ。整合性ガードが創作値を除去し、将来予測は非SOTとして明示（§1）。
 - **改竄されたダウンロード** — アーティファクトごとの SHA-256 公開と、出荷検査をそのハッシュに束縛することで対処（§4・[security-assessment.md](./security-assessment.md)）。
@@ -653,7 +653,7 @@ APIキーは重要な資産であり、その露出時間を最小化する設�
 
 依存ライブラリに潜む既知の脆弱性リスクを管理するため、RustSec アドバイザリデータベースを用いたスキャンを開発工程に組み込んでいます。
 
-- **継続的な検証**: 全依存ライブラリに対し、毎 push で `cargo audit` を実行し、脆弱性が報告された場合の対応体制を維持しています。同じ契機で `cargo deny` も並走し、脆弱性スキャンでは見えないもの——**ライセンスとソースの適合**——を担います。新しい推移的依存が、許可リストに一度も問われたことのないライセンスで入ってくることがあり、これはテストにも lint にも現れないがリリースを止める事実です。あわせて `cargo machete` が未使用の依存を刈ります。
+- **継続的な検証**: push 前に `scripts/check.sh` で必須のローカルのソース検査を行い、全依存ライブラリに対して `cargo audit` を実行します。ツールが無くて実行していない場合は合格として扱いません。定時の勧告スキャンも維持します。同じローカル検査で `cargo deny` も実行し、脆弱性スキャンでは見えないもの——**ライセンスとソースの適合**——を担います。新しい推移的依存が、許可リストに一度も問われたことのないライセンスで入ってくることがあり、これはテストにも lint にも現れないがリリースを止める事実です。あわせて `cargo machete` が未使用の依存を刈ります。
 - **スキャン結果の公開**: リリースごとの SCA 結果を、各現物のハッシュに紐づけて[出荷検査](./security-assessment.md)に記録します。
 
 #### SBOM (Software Bill of Materials) の提供

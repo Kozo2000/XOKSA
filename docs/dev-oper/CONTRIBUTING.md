@@ -91,12 +91,12 @@ integration tests + 5 no-drift tests** (run `cargo test` to confirm).
 
 ### Overview
 
-`.github/workflows/ci.yml` automatically runs quality checks on push and PR.
+Release builds run automatically after source changes are merged into `main`. Each OS uses one workflow run. Windows pauses that run for local signing and resumes packaging after owner approval. The complete order and protection settings are in [the operations policy](github-operations-policy.md) §5-4. `ci.yml` is manual-only; the quality checks below remain required locally.
 
 ### Execution Timing
 
-- Push to `main`, `xoksa-dev-**`, or `release/**`
-- Open or update of a PR targeting `main`
+- A source-path change listed in the release workflows is pushed to `main`.
+- Documentation/SBOM-only changes and work-branch/PR activity start no release build.
 
 ### Check Contents
 
@@ -128,7 +128,7 @@ allowlist has never been asked about. That is exactly what happened in #159 —
 
 - Due to dependency on `native-tls`, `libssl-dev` is pre-installed in the CI environment (ubuntu-latest).
 - Cargo build cache is saved/restored with `Cargo.lock` hash as the key (for speed).
-- PRs with failing CI cannot be merged (linked with GitHub Branch Protection).
+- Verify the required local results before merging; the four manual-only `ci.yml` jobs are not required pre-merge status checks. A failed release CI blocks publication.
 
 ### Local Pre-check (equivalent to CI)
 
@@ -257,12 +257,12 @@ cargo test <名前>   # 名前に部分一致するテストのみ実行（例: 
 
 ### 概要
 
-`.github/workflows/ci.yml` により、push および PR 時に品質チェックが自動実行されます。
+ソースの変更を `main` にマージした後、出荷ビルドを自動実行します。CI の実行は各 OS で 1 回です。Windows は手元での署名のため同じ実行を一時停止し、オーナーの承認後に梱包を再開します。全工程と保護設定は[運用ポリシー](github-operations-policy.md) §5-4 に記載します。`ci.yml` は手動専用とし、以下の品質検査は引き続きローカルで必須です。
 
 ### 実行タイミング
 
-- `main` / `xoksa-dev-**` / `release/**` ブランチへの push
-- `main` をベースとした PR のオープン・更新
+- 出荷ビルドのワークフローに列挙したソースのパスを変更して `main` に push したとき。
+- 文書と SBOM だけの変更、作業ブランチへの push、PR の作成と更新では出荷ビルドを起動しない。
 
 ### チェック内容
 
@@ -294,7 +294,7 @@ CI を赤にした。
 
 - `native-tls` ライブラリの依存により、CI 実行環境（ubuntu-latest）では `libssl-dev` を事前インストールしています。
 - Cargo のビルドキャッシュは `Cargo.lock` のハッシュをキーに保存・復元します（高速化）。
-- CI が失敗している PR はマージ禁止（GitHub の Branch Protection と連動）。
+- マージ前に必要なローカルの検証結果を確認する。手動専用の `ci.yml` の 4 ジョブはマージ前の必須ステータスチェックに登録しない。出荷 CI が失敗した場合は公開しない。
 
 ### ローカルでの事前確認（CI と同等）
 
