@@ -15,8 +15,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Least privilege. This workflow only reads the repo and uses NO secrets, so a
-# malicious fork PR (which runs read-only with no secret access under the
-# push trigger) has nothing to escalate or exfiltrate.
+# manually dispatched run has no secret access and cannot write to the repo.
 permissions:
   contents: read
 

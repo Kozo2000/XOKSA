@@ -14,8 +14,10 @@ name: Release build (Windows)
 # It also matches the shipping-inspection rule that a release record binds to the
 # artifact CI produced; a local build is not a substitute (§C.1).
 #
-# This workflow does NOT publish a release. It uploads the artifacts and their
-# hashes; tagging and publishing stay manual, after the merge (§C.1 rule 2).
+# One workflow run builds, waits for the owner's local signing, then packages
+# the signed executables without compiling again. The environment approval
+# releases that same run; it does not dispatch another workflow. This workflow
+# does not sign or publish. The MSI is signed locally after packaging.
 
 on:
   # Source landing on `main` builds the artifact that will be signed, inspected
@@ -36,6 +38,7 @@ on:
       - 'deny.toml'
       - 'rust-toolchain.toml'
       - 'scripts/**'
+      - '!**/*.md'
   workflow_dispatch:
     inputs:
       ref:
@@ -47,8 +50,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ inputs.ref || github.ref }}
   cancel-in-progress: false # a release build is never worth cancelling halfway
 
-# Least privilege: reads the repo, writes nothing back. Artifacts go to the run,
-# not to a release. No secrets are used, so there is nothing here to exfiltrate.
+# The build reads the repo. Only the called fetch-signed job receives write
+# access, needed to read a draft release; that job runs no repository code.
 permissions:
   contents: read
 
@@ -63,6 +66,10 @@ jobs:
   build:
     name: Build engine, apps and installer
     runs-on: windows-latest
+    outputs:
+      artifact_name: ${{ steps.handoff.outputs.artifact_name }}
+      source_sha: ${{ steps.handoff.outputs.source_sha }}
+      version: ${{ steps.handoff.outputs.version }}
 
     steps:
       # Third-party actions are pinned to a commit SHA (not a mutable tag) so a
@@ -168,8 +175,8 @@ jobs:
         run: cargo tauri build --bundles msi -- --locked
 
       # One MSI, one location (target/release/XOKSA-<version>-x64.msi). It is not
-      # the shipped installer: release-windows-package.yml packages that one from
-      # the executables below once they are signed.
+      # the shipped installer: the package job below packages that one from the
+      # executables below once they are signed.
       - name: Collect the installer
         shell: bash
         run: |
@@ -253,3 +260,43 @@ jobs:
             webui-leptos/dist/*_bg.wasm
             to-sign/*.exe
             SHA256SUMS
+
+      - name: Signing hand-off (same workflow run)
+        id: handoff
+        shell: bash
+        env:
+          SIGNING_TAG: signing-windows-${{ github.run_id }}
+        run: |
+          echo "artifact_name=xoksa-${XOKSA_VERSION}-windows-x86_64" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$XOKSA_VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Windows signing — same workflow run / 同じ CI 実行で署名待ち'
+            echo
+            echo "Run / 実行番号: $GITHUB_RUN_ID"
+            echo "Source / ソース: $(git rev-parse HEAD)"
+            echo "Artifact / 生成物: xoksa-${XOKSA_VERSION}-windows-x86_64"
+            echo "Draft release tag / 受け渡し用下書きタグ: $SIGNING_TAG"
+            echo
+            echo '1. Download this run’s artifact; sign the three files under to-sign/ locally.'
+            echo '   この実行の生成物を取得し、to-sign/ の実行ファイル 3 本に手元で署名する。'
+            echo '2. Upload only those signed files to the draft release named above, targeting the source commit above.'
+            echo '   上記のソースコミットを対象に、上記タグの下書きリリースへ署名済み 3 本を置く。'
+            echo '3. Approve windows-release-signing on this run. Packaging resumes here; do not start another workflow.'
+            echo '   この実行の windows-release-signing を承認する。同じ実行で梱包を再開する。'
+            echo '4. Download the packaged MSI, sign the MSI locally, then inspect that signed artifact.'
+            echo '   梱包済み MSI を取得して手元で署名し、その署名済み現物を検査する。'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  package:
+    name: Resume after signing and package (same run)
+    needs: build
+    permissions:
+      contents: write # only fetch-signed in the called workflow keeps this
+      actions: read
+    uses: ./.github/workflows/release-windows-package.yml
+    with:
+      artifact_name: ${{ needs.build.outputs.artifact_name }}
+      source_sha: ${{ needs.build.outputs.source_sha }}
+      version: ${{ needs.build.outputs.version }}
+      release_tag: signing-windows-${{ github.run_id }}

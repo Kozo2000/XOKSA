@@ -150,11 +150,11 @@
 
 - main is read-only. Changes only via PR.
 - Use Squash Merge by default. Adopting Non-FF (Merge Commit) requires presenting the reason and obtaining agreement. Fast-Forward is not used.
-- Approval + required checks allows merge. Approval must be by CODEOWNERS-relevant reviewer; required approval count and check names according to project definition.
+- The maintainer merges after review and the required local checks pass. CI starts after the source merge, as specified in §5-4; pre-merge CI status checks are not a merge requirement. Keep the PR requirement and the prohibitions on force push and branch deletion.
 - Submit as small PRs (specific file count / diff line count thresholds according to project definition).
 - Clearly state purpose / background / changes / impact / test steps in PR body, and link to Issue.
 - Do not include secrets or artifacts in PRs.
-- **One release, one CI run.** A release's record is raised once, after every inspection is finished — the external scans included — and that one pull request carries the whole release.
+- **Each OS release uses one CI workflow run.** Merge the source PR, build automatically, sign and inspect, then merge one PR containing all inspection results. The record PR starts no CI. Windows signing resumes the same run for packaging; it does not start a second run.
 - A branch name starts with the version its work will ship in: `v<version>`, or `v<version>-<keyword>` with the keyword naming the work. Lower case, digits, dots and hyphens only. No branch without a version. No prefix: a word such as `release` states a status, and a status does not belong in a name. Type is carried by the label, not by the branch name.
 
 ### Recommended (SHOULD)
@@ -169,9 +169,9 @@
 - **Push**: at a judged timing, for its own purpose (backing work up to the remote, making the branch visible); decoupled from raising a PR.
 - **PR**: raised only when the assigned mission is complete and self-verified to a no-rework level — not per file, not rushed.
 - Push and PR serve different purposes and are not performed at the same time.
-- **A version's work stays on `v<version>`, and one pull request is raised when that version's mission is complete.**
+- **A version's work stays on its versioned branch.** The source PR is merged before the release build; the inspection-record PR is raised once every inspection result is ready. These are the two PRs in §5-4.
 - **Never press for a merge by claiming the work cannot proceed without one.** Neither this policy nor the shipping inspection says so. A documentation correction rides in the next version's PR.
-- **Do not raise a follow-up PR.** A PR that exists only to fix the previous one would not exist had the previous one been verified first — watch CI go green before handing it over.
+- **Do not raise a follow-up PR.** A PR that exists only to fix the previous one would not exist had the previous one been verified first — verify the change locally before handing it over.
 
 ### SLA (Response Time)
 
@@ -183,7 +183,7 @@
 - Direct push / deletion / protection removal on main.
 - Force push, in any spelling and on any branch — `-f`, `--force`, `--force-with-lease`, `--mirror`, a `+refspec`, or the equivalent through any API.
 - Zip distribution / starting work from Zip (missing history).
-- Huge PRs / PRs with insufficient description / merging with CI failures.
+- Huge PRs / PRs with insufficient description / merging with failed local checks / publishing an artifact whose CI run failed.
 - Agreement / approval via DM (direct messages) (invalid outside PR).
 - Reaching a blocked operation by another command, another API, or another tool. A block by a hook, a permission setting, or a branch protection is a statement of the requester's intent, not a description of the pass condition. When blocked, stop, and raise it on the PR or Issue before going further.
 - Discarding work that exists only locally, or removing a shared reference, without prior agreement on the PR or Issue — `git reset --hard`, `git clean -fd`, `git checkout -f`, `git branch -D`, `git tag -d`, `git push --delete`, or the equivalent through any API. The list is illustrative, not exhaustive.
@@ -211,13 +211,13 @@ Definition of Ready: Acceptance criteria confirmed / scope of impact visible / s
   Signal: When ready → change to status:ready-for-review and mention reviewer.
 
 - status:ready-for-review (review requested) — Subject: Reviewer
-  Check: purpose, impact, no secrets/artifacts, CI success, diff size.
+  Check: purpose, impact, no secrets/artifacts, local verification results, diff size.
   Judgment: No problems → approve (status:approved). Problems → specific feedback + status:changes-requested.
   Note: Do not add spec additions after request (diff expansion is a disqualification).
 
 - status:changes-requested (addressing changes) — Subject: Developer
   Reply to feedback on PR and add minimum necessary fixes.
-  Developer resolves blocked:needs-rebase (rebase needed) and blocked:ci-failed (CI failure).
+  Developer resolves blocked:needs-rebase (main tracking needed). A failed post-merge release CI is handled before publication under §5-4.
   Signal: When fixes complete → return to status:ready-for-review and re-request.
 
 - status:approved (approved) — Subject: Developer → Maintainer
@@ -225,7 +225,7 @@ Definition of Ready: Acceptance criteria confirmed / scope of impact visible / s
   Handoff: Change to status:merge-ready and @maintainers explicitly in PR comment.
 
 - status:merge-ready (waiting for maintainer merge) — Subject: Maintainer
-  Leave acceptance comment, confirm approval is valid, CI successful, no unnecessary additions, and Squash & Merge.
+  Leave acceptance comment, confirm approval is valid, local checks passed, no unnecessary additions, and Squash & Merge.
   Visibility: Processing order in fixed Merge Queue Issue.
   Do not use Auto-merge.
 
@@ -238,24 +238,32 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 ### 5-3. Handling Blocks (Common)
 
 - blocked:needs-rebase: Developer catches up and resolves → return to status:ready-for-review.
-- blocked:ci-failed: Developer writes cause in PR and re-runs; return after success.
+- blocked:ci-failed: Developer records the failed release run and its cause on the PR. Do not publish until the failure is resolved and the required run succeeds. A retry after a failure is recorded as an additional run, not counted as the planned single successful run.
 - Prohibited: Merging with stale approval, huge PRs, secret/artifact contamination.
 
 ---
 
 ### 5-4. Release process (the order of shipping)
 
-**What "publication" means.** A release is **published** when the shipped artifact is stored in `dist/<version>/` and is available on the releases page, <https://github.com/Kozo2000/XOKSA/releases>. Both conditions together are the definition. **Publication is the last step of a release, and the release is complete at that moment.** Everything a release needs — the source, the build, the signature, every inspection including the external scans, the SBOM and the shipping record — is merged before it, which is what lets one release be carried by one pull request and one CI run.
+**What "publication" means.** A release is **published** when the shipped artifact is stored in `dist/<version>/` and is available on the releases page, <https://github.com/Kozo2000/XOKSA/releases>. Both conditions together are the definition. **Publication is the last step of a release, and the release is complete at that moment.** Everything a release needs — the source, the build, the signature, every inspection including the external scans, the SBOM and the shipping record — is merged before it, The source and inspection record are merged through the two PRs in the table below. Each OS uses one CI workflow run.
 
 **The order, and it is strict.**
 
-1. Merge the source change (version numbers, dependencies, anything compiled).
-2. Build the shipped artifact on CI from that merged source.
-3. Sign (and on macOS notarize and staple).
-4. Inspect the signed artifact and obtain the measured result of every stage in [the shipping inspection](../dev-prog/security-assessment.md) §C.1, the external scan results included. **The record is written once every result is in hand.**
-5. Write the §C.4 record and merge it: **one pull request, one CI run.**
-6. Tag the commit that contains the code, and store the artifact in `dist/<version>/`.
-7. Publish: attach the artifact to the release. **The release is complete here.**
+| Step | Work | macOS CI | Windows CI |
+| :--- | :--- | :--- | :--- |
+| 1 | Merge the source change through a PR. | No | No |
+| 2 | Automatically build the shipped artifact from that merged source. | Start the one run | Start the one run |
+| 3 | Sign locally; on macOS notarize and staple as well. On Windows, sign the three executables, resume the waiting run to package the MSI without compiling, then sign the MSI locally. | No | Resume the same run |
+| 4 | Inspect the signed artifact and obtain every result in [the shipping inspection](../dev-prog/security-assessment.md) §C.1, including the external scans. Write the record only after all results are available. | No | No |
+| 5 | Merge the §C.4 inspection record through one PR. | No | No |
+| 6 | Tag the commit containing the code and store the artifact in `dist/<version>/`. | No | No |
+| 7 | Publish by attaching the artifact to the release. The release is complete here. | No | No |
+
+**Two PRs: source at step 1 and inspection record at step 5. One CI workflow run per OS.** In Windows step 3 the existing run resumes; no new workflow run is dispatched. A release for both OSs therefore has two runs in total, one for each OS. The legacy `ci.yml` quality workflow is manual-only and is not part of this release path. Source checks remain mandatory locally and in the shipping inspection. A skipped supply-chain tool is not a passing check. The scheduled advisory scan remains independent of release builds.
+
+**Automatic start conditions.** A push to `main` that changes a path listed in the `push.paths` of `release-macos.yml` or `release-windows.yml` starts the corresponding build. PR creation, work-branch pushes, and documentation/SBOM-only changes start no release build. Both workflows use the same source-path list. Manual release-build dispatch is for an explicitly requested run, not a second routine step.
+
+**Main protection.** Do not register `Format / Lint / Test`, `cargo audit`, `cargo deny`, or `cargo machete` as required pre-merge status checks: they no longer run automatically on PRs. The maintainer verifies required local results before merging. Keep the PR requirement, stale-review dismissal, and the force-push/deletion protections. Do not bypass protection to merge.
 
 **Release build recipe — stated once here, so a §C.4 record names its commit, host and hashes instead of restating the steps.** Restating them is how a step was lost: v2.9.2's record said "`cargo build --release` in `xoksa-setup` staged as the second sidecar", and from v2.9.3 through v2.9.8 five records shortened that to "`xoksa-setup` staged as the second sidecar" — after which a v2.9.9 build staged a 2.9.8 settings binary, because nothing in the written recipe said to build it.
 
@@ -267,17 +275,17 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 
 **From v2.9.9 the release build runs on CI, not on a developer machine.** `.github/workflows/release-windows.yml` performs steps 1–5 above on a `windows-latest` runner and, before uploading, runs `scripts/check-no-host-paths.sh` over every artifact. The reason is §C.4's v2.9.9 record: rustc bakes each crate's source path into the binary for its panic messages, so a developer-machine build ships the builder's account name, and neither `strip = true` nor `--remap-path-prefix` removes all of it. A local build is still fine for development; it is no longer what gets inspected or shipped.
 
-**From v2.9.11 the Windows release is signed between two CI runs.** `release-windows.yml` builds as above and places the three executables taken from inside its unshipped MSI in `to-sign/`. They are signed on the owner's machine (the key lives in Certum's cloud and cannot reach a runner) and attached to a hand-off draft release. `release-windows-package.yml` then packages the shipped MSI from them without compiling, and the MSI is signed last. The standalone `xoksa-desktop.exe` must not be signed: Tauri stamps three bytes into the copy it packs, which breaks a signature applied beforehand.
+**Windows signing within one CI run.** `release-windows.yml` compiles and takes the three executables from inside the unsigned MSI into `to-sign/`. The owner signs these locally with Certum SimplySign and uploads them to a draft release named `signing-windows-<run ID>`. Configure `windows-release-signing` with the repository owner as its required reviewer, and permit the owner to approve their own run. The packaging guard also requires an approval record from that GitHub account; a missing environment rule is not treated as approval. Configure the environment before using this workflow. While approval is pending no runner waits in a polling loop. Approval resumes `release-windows-package.yml` as a called workflow within the same run ID; it cannot be dispatched as a separate run. It verifies approval, the source/hash manifest, executable signatures and payload identity before packaging without compilation. The owner then signs the MSI locally. Do not sign the standalone `xoksa-desktop.exe`: Tauri stamps three bytes into its packed copy, breaking a signature made before the stamp. The workflow summary gives the run ID, artifact, source and draft tag. The repository stores no signing key in Actions.
 
-**Binding the inspection to its source.** A hash says *which file* was inspected; it does not say *which source produced it*. Two failures during the v2.6.8 release made the gap concrete: a release was published before its source was committed, so `gh release create --target main` tagged a commit that did not contain the code; and a dependency update merged mid-inspection, leaving the first build unreproducible from the merged source. Six rules close it, and every record from v2.7.0 onward follows them.
+**Binding the inspection to its source.** A hash says *which file* was inspected; it does not say *which source produced it*. Two failures during the v2.6.8 release made the gap concrete: a release was published before its source was committed, so `gh release create --target main` tagged a commit that did not contain the code; and a dependency update merged mid-inspection, leaving the first build unreproducible from the merged source. Seven rules close it, and every record from v2.7.0 onward follows them.
 
 1. **Build from a committed, clean working tree.** An artifact built over uncommitted edits has no source to name.
 2. **Publish after the merge, never before.**
-3. **Tag the commit that actually contains the code.** A mistagged release is corrected with `git tag -f` and a force push of *the tag ref* — repointing a reference rather than rewriting a branch's history.
+3. **Tag the commit that actually contains the code.** Do not repoint a published tag or use a force push; §4 applies to tags as well as branches.
 4. **Name the source commit and its branch in the §C.4 record**, beside the artifact hashes.
-5. **An inspected artifact is bound to the single commit it was built from.** That commit is named in the §C.4 record. If files in `main` change between the build and the publication, and the changed files are only `docs/dev-prog/security-assessment.md` and files under `sbom/`, that artifact is the one published. If any other file has changed, the artifact is built again on CI and every stage in §C.1 is measured again. The decision is made from the output of `git diff --name-only <build commit> origin/main`. Those two are excluded because each records the result of an inspection and neither is taken into the artifact. `CHANGELOG.md` is not among them.
+5. **An inspected artifact is bound to the single commit it was built from.** Name that commit in §C.4. Before publication compare `git diff --name-only <build commit> origin/main` with the source paths listed under `push.paths` in both release-build workflows. If any listed path changed, rebuild automatically from the new merged source and repeat every stage in §C.1; the earlier artifact is not published. If no listed path changed, publish the inspected artifact. Documentation, inspection records, SBOM and `CHANGELOG.md` alone do not start a rebuild. Keep this decision and both workflows' path lists aligned.
 6. **Never delete a release branch.** Squash & Merge folds a branch's commits into one new commit on `main`, so the commit a record names survives **only on that branch** — measured at v2.9.8: `5065da8` (v2.9.7) and `e8b973d` (v2.9.8) are both unreachable from `main` and present only on `origin/release/v2.9.7` and `origin/release/v2.9.8`. Deleting the branch would leave the record pointing at nothing. `deleteBranchOnMerge` is therefore off for this repository.
-7. **A §C.4 heading states dated facts, never a mutable state.** "Not yet shipped" is true until it is not, and nothing makes it change: v2.9.9's record carried it while the release went out **twelve minutes later**, and the other side of the project read it, believed the version was unpublished, and rebuilt a macOS artifact against a source the published one does not match — half a day lost. So a heading carries *when it was inspected* and *when it was published*, both of which stay true; the **current** state lives in one place only, the handover note, which is overwritten rather than appended. **Publishing is not finished until the §C.4 heading carries the publication date**, in both languages.
+7. **A §C.4 heading states dated inspection facts, never mutable status.** Do not write "not yet shipped" in a heading. The current state and publication timestamp live in the handover note and are updated there after publication. Do not require a publication date to be added to §C.4 as a release-completion condition, and do not create a follow-up PR solely for that date. Existing dated publication facts remain valid.
 
 **Across a repository migration.** This project plans to publish a fresh repository built from `main`'s current tree **without carrying the history**. Every commit a §C.4 record names, and every `release/*` branch holding one, stays behind with that history — and so would any tag, since a tag travels with the commit it points at. The decision recorded here is that **the source repository is kept as a private archive rather than deleted**, so those commits stay reachable: a record written before the migration refers to the archive, not to the published repository. Rule 6 therefore keeps applying *to the archive* — the release branches must survive there — and the first §C.4 record written after the migration states which repository it is bound to, so no record is ambiguous about where its commit lives.
 
@@ -468,11 +476,11 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 
 - main は読み取り専用。変更は PR 経由のみ。
 - 取り込みは Squash Merge を原則とする。Non-FF（Merge Commit）を採用する際はその理由を提示し合意を得ること。Fast-Forward は使用しない。
-- 承認＋必須チェックでマージ可。承認は CODEOWNERS 該当者によるものとし、必要承認数と必須チェック名はプロジェクト定義に準じる。
+- 管理者はレビューと必須のローカル検査の合格を確認してマージする。CI は §5-4 に従ってソースのマージ後に起動し、マージ前の CI ステータスチェックを必須条件にしない。PR 経由の変更、強制 push 禁止、ブランチ削除禁止の保護は維持する。
 - 小さな PR で提出する（具体的なファイル数・差分行数の閾値はプロジェクト定義に準じる）。
 - PR 本文に 目的／背景／変更点／影響／テスト手順 を明記し、Issue へ紐付け。
 - 秘密情報・生成物は PR に含めない。
-- **1 リリースにつき CI は 1 回。** リリースの記録は、外部スキャンを含むすべての検査が完了してから 1 本出し、その 1 本がリリース全体を運ぶ。
+- **各 OS のリリースで CI の実行は 1 回。** ソースの PR をマージし、自動ビルド、署名、検査の後に、全検査結果をまとめた PR を 1 本マージする。記録の PR では CI を起動しない。Windows の署名後の梱包は同じ実行の再開で行い、2 回目の実行を起動しない。
 - ブランチ名は、その作業を載せる版数から始める（`v<版数>` または `v<版数>-<キーワード>`。キーワードは作業内容）。小文字・数字・ドット・ハイフンのみ。版数の無いブランチは作らない。接頭辞は付けない——`release` のような語は状態を表すものであり、状態を名前に固定しない。種別はラベルで示す。
 
 ### 推奨（SHOULD）
@@ -487,9 +495,9 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 - **プッシュ**：それ自体の目的（作業のリモート退避・ブランチの可視化）のため、頃合いを見て行う。PR を出すこととは切り離す。
 - **PR**：与えられたミッションが完了し、手戻りが無いと自己確認できたレベルで初めて出す。ファイル単位・拙速に出さない。
 - プッシュと PR は目的が異なり、同じタイミングで行わない。
-- **版の作業は `v<版数>` に積み続け、その版のミッションが完了したときに 1 本出す。**
+- **版の作業は版数を付けたブランチに置く。** ソースの PR は出荷ビルドより前にマージし、検査記録の PR は全検査結果が揃ってから 1 本出す。§5-4 の PR 2 本はこの 2 つを指す。
 - **「PR を出さないと先に進めない」と言って急かさない。** 本ポリシーにも出荷検査手順にもそのような条項は無い。文書の修正は、次の版の PR に同梱すれば足りる。
-- **後追いの PR を作らない。** 直前の PR の不備を直すだけの PR は、検証してから出していれば存在しない。CI が緑になったことを確認してから渡す。
+- **後追いの PR を作らない。** 直前の PR の不備を直すだけの PR は、検証してから出していれば存在しない。ローカルで検証してから渡す。
 
 ### SLA（対応時間）
 
@@ -501,7 +509,7 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 - main 直 push／削除／保護解除。
 - force push（綴りを問わず、ブランチを問わず）。`-f`・`--force`・`--force-with-lease`・`--mirror`・`+refspec`、および任意の API による同等の操作。
 - Zip 配布・Zip から作業開始（履歴欠落）。
-- 巨大 PR・説明不足 PR・CI 失敗のままのマージ。
+- 巨大 PR・説明不足 PR・ローカル検査失敗のままのマージ・CI 失敗の現物の公開。
 - DM（ダイレクトメッセージ）での合意・承認（PR 外は無効）。
 - 遮断された操作を、別のコマンド・別の API・別のツールで達成しようとすること。フック・権限設定・ブランチ保護による遮断は、通過条件の記述ではなく依頼者の意図の表明として扱う。遮断に当たったら止まり、PR または Issue で相談してから先へ進む。
 - ローカルにしか存在しない作業の破棄、または共有参照の削除を、PR／Issue での事前合意なしに行うこと（`git reset --hard`・`git clean -fd`・`git checkout -f`・`git branch -D`・`git tag -d`・`git push --delete`、および任意の API による同等の操作）。列挙は例示であり、網羅ではない。
@@ -529,13 +537,13 @@ Definition of Ready：受入基準が確定／影響範囲が見える／小 PR 
   合図：準備完了 → status:ready-for-review に変更し、レビュアーをメンション。
 
 - status:ready-for-review（レビュー依頼中） — 主語：レビュアー
-  確認：目的・影響・秘密/生成物なし・CI 成功・差分サイズ。
+  確認：目的・影響・秘密/生成物なし・ローカルの検証結果・差分サイズ。
   判定：問題なし→承認（status:approved）。問題あり→具体指摘＋ status:changes-requested。
   注意：依頼後に仕様追加をしない（差分膨張は失格）。
 
 - status:changes-requested（修正対応中） — 主語：開発者
   指摘へ PR 上で返信し、必要最小の修正を追加。
-  blocked:needs-rebase（追随必要）や blocked:ci-failed（CI 失敗）は開発者が解消。
+  blocked:needs-rebase（追随必要）は開発者が解消する。マージ後の出荷 CI の失敗は §5-4 に従い、公開前に解消する。
   合図：修正完了 → status:ready-for-review に戻して再依頼。
 
 - status:approved（承認済み） — 主語：開発者 → 管理者
@@ -543,7 +551,7 @@ Definition of Ready：受入基準が確定／影響範囲が見える／小 PR 
   引き渡し：status:merge-ready に変更し、PR コメントで @maintainers を明示。
 
 - status:merge-ready（管理者マージ待ち） — 主語：管理者
-  受領コメントを残し、承認有効・CI 成功・不要追加なしを確認して Squash & Merge。
+  受領コメントを残し、承認有効・ローカル検査合格・不要追加なしを確認して Squash & Merge。
   可視化：処理順は固定の Merge Queue Issue に。
   Auto-merge は使用しない。
 
@@ -556,24 +564,32 @@ Definition of Done：Squash & Merge 済み／Issue クローズ／関連ドキ�
 ### 5-3. ブロック時の扱い（共通）
 
 - blocked:needs-rebase：開発者が追随して解消 → status:ready-for-review へ復帰。
-- blocked:ci-failed：開発者が原因を PR に明記し再実行、成功後に復帰。
+- blocked:ci-failed：開発者は失敗した出荷 CI の実行番号と原因を PR に記録する。失敗を解消し、必要な実行が成功するまで公開しない。失敗による再実行は追加の実行として記録し、予定した正常時の 1 回に数え込まない。
 - 禁止：古い承認のままのマージ（stale approval）、巨大 PR、秘密・生成物の混入。
 
 ---
 
 ### 5-4. リリース工程（出荷の順序）
 
-**「公開」とは何か。** リリースが**公開された**とは、出荷する現物が `dist/<版数>/` に保管され、リリースページ <https://github.com/Kozo2000/XOKSA/releases> で入手できる状態になったことをいう。この 2 つが揃った状態を公開と定義する。**公開はリリースの最終工程であり、この時点でリリースは完了する。** リリースに必要なもの——ソース・ビルド・署名・外部スキャンを含むすべての検査・SBOM・出荷検査の記録——は、すべて公開より前にマージする。これにより、1 回のリリースは PR 1 本・CI 1 回で運べる。
+**「公開」とは何か。** リリースが**公開された**とは、出荷する現物が `dist/<版数>/` に保管され、リリースページ <https://github.com/Kozo2000/XOKSA/releases> で入手できる状態になったことをいう。この 2 つが揃った状態を公開と定義する。**公開はリリースの最終工程であり、この時点でリリースは完了する。** リリースに必要なもの——ソース・ビルド・署名・外部スキャンを含むすべての検査・SBOM・出荷検査の記録——は、すべて公開より前にマージする。ソースと検査記録は、下表の PR 2 本でマージする。CI の実行は各 OS で 1 回である。
 
 **順序。厳守する。**
 
-1. ソースの変更（版数・依存など、コンパイル対象）をマージする。
-2. そのマージ済みソースから、CI で出荷する現物をビルドする。
-3. 署名する（macOS は公証と staple も）。
-4. 署名済みの現物を検査し、[出荷検査](../dev-prog/security-assessment.md) §C.1 の全段階の測定結果を得る。外部スキャンの結果を含む。**記録は、全段階の結果が揃ってから書く。**
-5. §C.4 の記録を書いてマージする。**PR 1 本・CI 1 回。**
-6. 実体を含むコミットにタグを打ち、現物を `dist/<版数>/` に保管する。
-7. 公開する——リリースに現物を添付する。**この時点でリリースは完了する。**
+| 手順 | 内容 | macOS の CI | Windows の CI |
+| :--- | :--- | :--- | :--- |
+| 1 | ソースの変更を PR でマージする。 | ✕ | ✕ |
+| 2 | そのマージ済みソースから、出荷する現物を自動でビルドする。 | 1 回の実行を開始 | 1 回の実行を開始 |
+| 3 | 手元で署名する。macOS は公証と staple も行う。Windows は実行ファイル 3 本に署名し、待機中の実行を再開して再コンパイルせずに MSI を梱包し、その MSI に手元で署名する。 | ✕ | 同じ実行を再開 |
+| 4 | 署名済みの現物を検査し、[出荷検査](../dev-prog/security-assessment.md) §C.1 の全段階の測定結果を得る。外部スキャンの結果を含む。記録は、全段階の結果が揃ってから書く。 | ✕ | ✕ |
+| 5 | §C.4 の検査記録を PR 1 本でマージする。 | ✕ | ✕ |
+| 6 | 実体を含むコミットにタグを打ち、現物を `dist/<版数>/` に保管する。 | ✕ | ✕ |
+| 7 | 公開する——リリースに現物を添付する。この時点でリリースは完了する。 | ✕ | ✕ |
+
+**PR は手順 1 のソースと手順 5 の検査記録の 2 本。CI の実行は各 OS で 1 回。** Windows の手順 3 は待機していた実行の再開であり、新しい実行を起動しない。両 OS を出荷する場合の合計は、OS ごとの 1 回を足して 2 回である。従来の品質検査用 `ci.yml` は手動専用とし、この出荷工程には含めない。ソースの検査はローカルと出荷検査で引き続き必須とする。供給網検査のツールが無くて実行を省いた場合は、合格として扱わない。定時の勧告スキャンは出荷ビルドとは独立して維持する。
+
+**自動起動の条件。** `main` への push で `release-macos.yml` または `release-windows.yml` の `push.paths` に列挙したパスが変更されたとき、対応するビルドを起動する。PR の作成、作業ブランチへの push、文書と SBOM だけの変更では出荷ビルドを起動しない。両ワークフローのソースのパス一覧は一致させる。出荷ビルドの手動起動は明示的に依頼された場合に限り、通常の工程に 2 回目として加えない。
+
+**main の保護設定。** `Format / Lint / Test`・`cargo audit`・`cargo deny`・`cargo machete` は、PR で自動実行しなくなるため、マージ前の必須ステータスチェックには登録しない。管理者は必要なローカルの検証結果を確認してからマージする。PR 経由の変更、追加差分による承認失効、強制 push と削除を禁止する保護は維持する。保護を迂回してマージしない。
 
 **リリースのビルド recipe — ここに 1 回だけ記す。§C.4 の記録は手順を書き直すのではなく、コミット・host・ハッシュを名乗る。** 書き直しは実際に手順を失わせた：v2.9.2 の記録は「`cargo build --release` in `xoksa-setup` を 2 本目の sidecar として配置」と書いていたが、v2.9.3 から v2.9.8 までの 5 本が「`xoksa-setup` を 2 本目の sidecar として配置」と短縮し、その結果 v2.9.9 のビルドが 2.9.8 の設定アプリを配置した——書かれた recipe のどこにも「ビルドする」と無かったためである。
 
@@ -585,17 +601,17 @@ Definition of Done：Squash & Merge 済み／Issue クローズ／関連ドキ�
 
 **v2.9.9 以降、リリースビルドは開発機ではなく CI で行う。** `.github/workflows/release-windows.yml` が上記 1〜5 を `windows-latest` ランナーで実行し、アップロード前に全現物へ `scripts/check-no-host-paths.sh` を掛ける。理由は §C.4 の v2.9.9 の記録にある——rustc は panic メッセージのために各クレートのソースパスをバイナリへ焼き込むため、開発機でのビルドはビルド者のアカウント名を出荷してしまい、`strip = true` でも `--remap-path-prefix` でも全部は消えない。開発目的のローカルビルドは従来どおりでよいが、検査と出荷の対象ではなくなった。
 
-**v2.9.11 以降、Windows のリリースは 2 回の CI の間で署名する。** `release-windows.yml` が上記のとおりビルドし、出荷しない MSI の中から取り出した実行ファイル 3 本を `to-sign/` に置く。これをオーナーの端末で署名し（鍵は Certum のクラウドにあり、ランナーからは届かない）、受け渡し専用の下書きリリースに置く。`release-windows-package.yml` がそれらからコンパイルせずに出荷用の MSI を組み、最後に MSI に署名する。単体の `xoksa-desktop.exe` には署名してはならない——Tauri は梱包するコピーに 3 バイトを刻むため、その前に付けた署名が壊れる。
+**Windows の署名を 1 回の CI 実行の中で受け渡す。** `release-windows.yml` がコンパイルし、未署名の MSI に入った実行ファイル 3 本を `to-sign/` に取り出す。オーナーは Certum SimplySign で手元で署名し、`signing-windows-<実行番号>` というタグの下書きリリースに置く。`windows-release-signing` 環境にはリポジトリのオーナーを必須レビュアーとして登録し、オーナー自身が起動した実行の承認も許可する。梱包のガードは、その GitHub アカウントによる承認記録も必須とし、環境の規則が未設定であることを承認として扱わない。ワークフローを使う前にこの環境を設定する。承認待ちの間、ランナーをポーリングのために動かし続けない。承認後は、同じ実行番号の中で呼び出した `release-windows-package.yml` が再開する。これを別の実行として手動起動することはできない。承認、ソースとハッシュの一覧、実行ファイルの署名、ペイロードの同一性を検証してから、コンパイルせずに梱包する。最後にオーナーが MSI に手元で署名する。単体の `xoksa-desktop.exe` には署名しない。Tauri が梱包するコピーに 3 バイトを刻むため、その前に付けた署名が壊れる。実行番号・生成物・ソース・下書きタグはワークフローの概要に表示する。署名キーは Actions に置かない。
 
-**検査をソースに束縛する。** ハッシュが示すのは*どのファイルを検査したか*であって、*どのソースから生まれたか*ではない。v2.6.8 のリリース作業で、この隙間が実際に 2 つの失敗として現れた。ソースをコミットする前にリリースを公開したため `gh release create --target main` が**コードを含まないコミット**にタグを打ったこと。そして検査の最中に依存の更新がマージされ、最初のビルドがマージ後のソースから再現できなくなったことである。以下の 6 項目でこれを塞ぐ。v2.7.0 以降の記録はすべてこれに従っている。
+**検査をソースに束縛する。** ハッシュが示すのは*どのファイルを検査したか*であって、*どのソースから生まれたか*ではない。v2.6.8 のリリース作業で、この隙間が実際に 2 つの失敗として現れた。ソースをコミットする前にリリースを公開したため `gh release create --target main` が**コードを含まないコミット**にタグを打ったこと。そして検査の最中に依存の更新がマージされ、最初のビルドがマージ後のソースから再現できなくなったことである。以下の 7 項目でこれを塞ぐ。v2.7.0 以降の記録はすべてこれに従っている。
 
 1. **コミット済み・作業ツリー clean からビルドする。** 未コミットの編集の上で作った現物には、名乗るべきソースが無い。
 2. **公開はマージの後に行う。** 順序を逆にしない。
-3. **タグは実体を含むコミットに打つ。** 打ち間違えたリリースは `git tag -f` と**タグ ref** の force push で是正する——ブランチの履歴を書き換えるのではなく、参照を付け替える操作である。
+3. **実体を含むコミットにタグを打つ。** 公開済みタグの付け替えや強制 push はしない。§4 の禁止はブランチだけでなくタグにも適用する。
 4. **§C.4 の記録に、ソースコミットとそのブランチを現物のハッシュと並べて明記する。**
-5. **検査した現物は、ビルドしたコミット 1 つに束縛される。** そのコミットは §C.4 の記録に明記する。ビルドしてから公開するまでの間に `main` のファイルが変更された場合、変更されたファイルが `docs/dev-prog/security-assessment.md` と `sbom/` 配下のものだけであれば、その現物を公開する。それ以外のファイルが 1 つでも変更されていれば、CI でビルドし直し、§C.1 の全段階を測り直す。判定は `git diff --name-only <ビルド元コミット> origin/main` の出力で行う。この 2 つを除外するのは、どちらも検査の結果を書き留めるものであり、現物に取り込まれないためである。`CHANGELOG.md` はここに含まない。
+5. **検査した現物は、ビルドしたコミット 1 つに束縛される。** そのコミットを §C.4 に明記する。公開前に `git diff --name-only <ビルド元コミット> origin/main` の出力を、両出荷ビルドの `push.paths` に列挙したソースのパスと照合する。該当するパスが 1 つでも変更されていれば、新しいマージ済みソースから自動でビルドし直し、§C.1 の全段階を測り直す。それまでの現物は公開しない。該当するパスが変更されていなければ、検査した現物を公開する。文書・検査記録・SBOM・`CHANGELOG.md` だけの変更ではビルドをやり直さない。この判定と両ワークフローのパス一覧を一致させる。
 6. **release ブランチは削除しない。** Squash & Merge はブランチのコミットを畳んで `main` に新しい 1 個を作るため、記録が名指しするコミットは**そのブランチにしか残らない**——v2.9.8 時点の実測で、`5065da8`（v2.9.7）と `e8b973d`（v2.9.8）はいずれも `main` から到達不能で、`origin/release/v2.9.7` と `origin/release/v2.9.8` にのみ存在する。ブランチを消すと記録の参照先が消える。本リポジトリで `deleteBranchOnMerge` を無効にしているのはこのためである。
-7. **§C.4 の見出しには日付つきの事実だけを書き、可変の状態を書かない。**「未出荷」は、そうでなくなるまでは真で、変える仕掛けが無い。実際に v2.9.9 の記録はこれを載せたまま**12 分後にリリースが出て**、反対側（macOS）がそれを読んで未公開と信じ、公開物と一致しないソースから現物を作り直した——半日の損失。よって見出しには**いつ検査したか**と**いつ公開したか**——どちらも後から変わらない——を書く。**現在の**状態は 1 箇所（引継ぎ書）にだけ置き、追記ではなく上書きする。**公開は、§C.4 の見出しに公開日が入るまで終わっていない**（日英とも）。
+7. **§C.4 の見出しには日付つきの検査事実を書き、可変の状態を書かない。** 見出しに「未出荷」と書かない。現在の状態と公開日時は引継ぎ書に置き、公開後にそこで更新する。§C.4 への公開日の追記をリリース完了の条件にせず、その日付だけのために後追い PR を作らない。既に記録した日付つきの公開事実は有効なまま残す。
 
 **リポジトリの引っ越しをまたぐ場合。** 本プロジェクトは、`main` の現在のツリーだけを新しいリポジトリとして公開し、**履歴は持ち込まない**計画である。§C.4 の記録が名指しするコミットも、それを保持する `release/*` ブランチも、履歴とともに元のリポジトリに残る（タグも同様である。タグは指し示すコミットと一緒にしか移動しない）。ここで記録する判断は、**引っ越し元を削除せず非公開のアーカイブとして残す**ことである。したがってそれらのコミットは引き続き到達可能であり、引っ越し前に書かれた記録が指すのは公開リポジトリではなく**このアーカイブ**である。規定 6 はアーカイブに対して効き続ける——release ブランチはそこで生き残らなければならない——また、引っ越し後に最初に書く §C.4 の記録には、どのリポジトリに束縛されているかを明記する。これにより、どの記録も自分のコミットの在り処が曖昧にならない。
 

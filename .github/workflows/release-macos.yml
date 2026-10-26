@@ -44,6 +44,7 @@ on:
       - 'deny.toml'
       - 'rust-toolchain.toml'
       - 'scripts/**'
+      - '!**/*.md'
   workflow_dispatch:
     inputs:
       ref:
