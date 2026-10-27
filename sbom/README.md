@@ -4,10 +4,12 @@ Machine-readable dependency inventories in **CycloneDX 1.5** (JSON), for supply-
 
 | File | Covers | Components |
 |------|--------|-----------|
-| `xoksa-native-windows-x86_64.cdx.json` | the shipped Windows engine (`xoksa.exe`), `cargo build --release` (default `embedded-ui`) | 225 cargo crates |
-| `xoksa-native-macos-arm64.cdx.json` | the shipped macOS engine (`xoksa`, inside `XOKSA.app`), same build | 221 cargo crates |
+| `xoksa-native-windows-x86_64.cdx.json` | the shipped Windows engine (`xoksa.exe`), `cargo build --release` (default `embedded-ui`) | 224 cargo crates |
+| `xoksa-native-macos-arm64.cdx.json` | the shipped macOS engine (`xoksa`, inside `XOKSA.app`), same build | 222 cargo crates |
 | `xoksa-desktop-windows-x86_64.cdx.json` | the shipped Windows desktop shell (`xoksa-desktop.exe`), the Tauri/WebView2 set | 196 cargo crates |
+| `xoksa-desktop-macos-arm64.cdx.json` | the shipped macOS desktop shell (`xoksa-desktop`), Tauri/WKWebView | 203 cargo crates |
 | `xoksa-setup-windows-x86_64.cdx.json` | the shipped Windows settings app (`xoksa-setup.exe`), Tauri/WebView2 plus the config and keychain paths | 212 cargo crates |
+| `xoksa-setup-macos-arm64.cdx.json` | the shipped macOS settings app (`xoksa-setup`), Tauri/WKWebView plus config and keychain paths | 214 cargo crates |
 | `xoksa-webui-leptos.cdx.json` | the Rust/WASM frontend (`xoksa-webui`) | 188 cargo crates |
 
 **One SBOM per OS is required, not redundant.** The two native inventories come from the same source and the same `Cargo.lock`, but a `Cargo.lock` is the union over all targets while an SBOM lists what is **in that binary**. The platform-specific dependencies swap out: Windows carries `schannel` / `winapi` / `windows-sys` / `windows-native-keyring-store`, macOS carries `security-framework` / `core-foundation` / `apple-native-keyring-store`. Publishing only one would have downstream SCA scanning crates that are not in the artifact and missing the ones that are. The WASM frontend needs only one file — its target (`wasm32-unknown-unknown`) does not depend on the build host.
@@ -48,7 +50,7 @@ the existing `xoksa.exe` — for `cp` and for a shell redirect alike — so both
 `xoksa.exe` instead of the extensionless name, and report success. It matters because
 syft's `pe-binary-package-cataloger` fires on the `.exe` extension and adds a further
 component of type `application` (carrying a CPE and a relative location), which would
-leave that inventory the only one of the five that is not `library`-only. Make the copy
+leave that inventory the only inventory that is not `library`-only. Make the copy
 with PowerShell instead — the same applies to `xoksa-desktop` and `xoksa-setup` below:
 
 ```powershell
@@ -88,8 +90,8 @@ reach the index even before step 4 removes it.
 
 ## Caveats
 
-- **Host target.** Each inventory resolves for the target it was built on; that is why the file name carries the OS and arch. Regenerate on the machine that produces the shipped artifact.
-- **The table counts parts, not the product.** Every inventory names the built artifact in `metadata.component` (type `file`, taken from the path syft read); the crate counts above are the **`library` components** in `components[]`, and every inventory is now `library` only — macOS 221 of 221, Windows 225 of 225, WASM 188 of 188, the desktop shell 196 of 196 and the settings app 212 of 212. Step 2 still reads the throwaway from a neutral directory: the recorded path must not be a developer's home or the working tree. *(Corrected 2026-09-25: this note previously described the Windows entry as type `application` and counted 212 of 213; neither matched the published inventory.)* *(2026-09-27: the macOS inventory used to carry a 222nd component of type `file` naming the scanned binary by absolute path — `/private/tmp/sbom298/xoksa`, from the file-metadata cataloguer the recipe now disables. What is inside the binary did not change; the inventories stopped disagreeing about shape.)*
+- **Host target.** Each inventory resolves for the target it was built on; that is why the file name carries the OS and arch. Generate from the same program source and locked dependencies for that OS and architecture. The native inventories come from throwaway auditable builds; they are not metadata extracted from the clean CI executables.
+- **The table counts parts, not the product.** Every inventory names the built artifact in `metadata.component` (type `file`, taken from the path syft read); the crate counts above are the **`library` components** in `components[]`, and every inventory is now `library` only — macOS engine 222 of 222, macOS desktop shell 203 of 203, macOS settings app 214 of 214, Windows engine 224 of 224, WASM 188 of 188, the Windows desktop shell 196 of 196 and the Windows settings app 212 of 212. Step 2 still reads the throwaway from a neutral directory: the recorded path must not be a developer's home or the working tree. *(Corrected 2026-09-25: this note previously described the Windows entry as type `application` and counted 212 of 213; neither matched the published inventory.)* *(2026-09-27: the macOS inventory used to carry a 222nd component of type `file` naming the scanned binary by absolute path — `/private/tmp/sbom298/xoksa`, from the file-metadata cataloguer the recipe now disables. What is inside the binary did not change; the inventories stopped disagreeing about shape.)*
 - **Point-in-time.** An SBOM reflects the lockfile at generation time. The authoritative vulnerability posture is the per-release SCA (`cargo audit` + `osv-scanner`, plus `cargo audit bin` against the artifact's own embedded list) recorded in [security-assessment.md](../docs/dev-prog/security-assessment.md); the SBOM is the component inventory those scans run against.
 
 ---
@@ -100,10 +102,12 @@ reach the index even before step 4 removes it.
 
 | ファイル | 対象 | コンポーネント |
 |------|------|-----------|
-| `xoksa-native-windows-x86_64.cdx.json` | 出荷 Windows エンジン（`xoksa.exe`）、`cargo build --release`（既定 `embedded-ui`） | 225 crate |
-| `xoksa-native-macos-arm64.cdx.json` | 出荷 macOS エンジン（`XOKSA.app` 内の `xoksa`）、同じビルド | 221 crate |
+| `xoksa-native-windows-x86_64.cdx.json` | 出荷 Windows エンジン（`xoksa.exe`）、`cargo build --release`（既定 `embedded-ui`） | 224 crate |
+| `xoksa-native-macos-arm64.cdx.json` | 出荷 macOS エンジン（`XOKSA.app` 内の `xoksa`）、同じビルド | 222 crate |
 | `xoksa-desktop-windows-x86_64.cdx.json` | 出荷 Windows デスクトップシェル（`xoksa-desktop.exe`）、Tauri/WebView2 一式 | 196 crate |
+| `xoksa-desktop-macos-arm64.cdx.json` | 出荷 macOS デスクトップシェル（`xoksa-desktop`）、Tauri/WKWebView | 203 crate |
 | `xoksa-setup-windows-x86_64.cdx.json` | 出荷 Windows 設定アプリ（`xoksa-setup.exe`）、Tauri/WebView2 に設定・キーチェーン経路を加えたもの | 212 crate |
+| `xoksa-setup-macos-arm64.cdx.json` | 出荷 macOS 設定アプリ（`xoksa-setup`）、Tauri/WKWebView に設定・キーチェーン経路を加えたもの | 214 crate |
 | `xoksa-webui-leptos.cdx.json` | Rust/WASM フロントエンド（`xoksa-webui`） | 188 crate |
 
 **OS ごとの SBOM は冗長ではなく必須である。** 2 つのネイティブ・インベントリは同一ソース・同一 `Cargo.lock` から生成されるが、`Cargo.lock` が全ターゲットの和集合であるのに対し、SBOM は**そのバイナリに入っているもの**を列挙する。プラットフォーム依存の依存関係は丸ごと入れ替わる：Windows は `schannel` / `winapi` / `windows-sys` / `windows-native-keyring-store`、macOS は `security-framework` / `core-foundation` / `apple-native-keyring-store`。片方だけを公開すると、下流の SCA は現物に入っていない crate を検査し、入っている crate を見落とす。WASM フロントエンドは 1 本でよい（ターゲット `wasm32-unknown-unknown` はビルドホストに依存しないため）。
@@ -124,7 +128,7 @@ Git Bash（MSYS）は `xoksa` を既存の `xoksa.exe` に解決する——`cp`
 名前ではなく `xoksa.exe` に書き、成功したと報告する。これが問題に
 なるのは、syft の `pe-binary-package-cataloger` が `.exe` 拡張子で発動し、
 type `application` のコンポーネント（CPE と相対パスを伴う）を 1 つ
-余計に足すためで、そうなるとそのインベントリだけが 5 本の中で
+余計に足すためで、そうなるとそのインベントリだけが
 `library` のみでなくなる。コピーは PowerShell で行うこと——下の
 `xoksa-desktop`・`xoksa-setup` も同じである：
 
@@ -140,6 +144,6 @@ Copy-Item -LiteralPath target-sbom\release\xoksa.exe -Destination <中立ディ�
 
 ## 注意点
 
-- **host ターゲット。** 各インベントリはビルドしたターゲットで解決される。ファイル名に OS とアーキテクチャを含めているのはそのため。出荷現物を作るマシンで再生成すること。
-- **表が数えているのは部品であって製品ではない。** どのインベントリも、ビルドした成果物自身は `metadata.component` に載る（type `file`。syft が読んだファイルのパスを名前にする）。上表の crate 数は `components[]` の **`library` コンポーネント**であり、現在はどのインベントリも `library` のみで構成される——macOS は 221 中 221、Windows は 225 中 225、WASM は 188 中 188、デスクトップシェルは 196 中 196、設定アプリは 212 中 212。手順 2 で中立ディレクトリから読ませる理由は変わらない。記録されるパスに開発者のホームや作業ツリーが出てはならない。*（2026-09-25 訂正：本注記は Windows の項目を type `application`、213 中 212 と記していたが、どちらも公開済みのインベントリと一致していなかった。）* *（2026-09-27：macOS のインベントリには、走査したバイナリを絶対パス `/private/tmp/sbom298/xoksa` で名指す 222 番目の `file` コンポーネントが入っていた。file-metadata カタロガによるもので、現在の手順では無効化している。バイナリの中身の数は変わっておらず、インベントリ間で形が食い違わなくなっただけである。）*
+- **host ターゲット。** 各インベントリはビルドしたターゲットで解決される。ファイル名に OS とアーキテクチャを含めているのはそのため。出荷現物と同じプログラムソース・固定依存を、そのOSとアーキテクチャ向けにビルドして生成する。ネイティブのインベントリは使い捨てのauditableビルドから導出するもので、監査情報を持たないCI実行ファイルからの抽出ではない。
+- **表が数えているのは部品であって製品ではない。** どのインベントリも、ビルドした成果物自身は `metadata.component` に載る（type `file`。syft が読んだファイルのパスを名前にする）。上表の crate 数は `components[]` の **`library` コンポーネント**であり、現在はどのインベントリも `library` のみで構成される——macOS エンジンは 222 中 222、macOS デスクトップは 203 中 203、macOS 設定アプリは 214 中 214、Windows エンジンは 224 中 224、WASM は 188 中 188、Windows デスクトップシェルは 196 中 196、Windows 設定アプリは 212 中 212。手順 2 で中立ディレクトリから読ませる理由は変わらない。記録されるパスに開発者のホームや作業ツリーが出てはならない。*（2026-09-25 訂正：本注記は Windows の項目を type `application`、213 中 212 と記していたが、どちらも公開済みのインベントリと一致していなかった。）* *（2026-09-27：macOS のインベントリには、走査したバイナリを絶対パス `/private/tmp/sbom298/xoksa` で名指す 222 番目の `file` コンポーネントが入っていた。file-metadata カタロガによるもので、現在の手順では無効化している。バイナリの中身の数は変わっておらず、インベントリ間で形が食い違わなくなっただけである。）*
 - **時点情報。** SBOM は生成時点の lockfile を反映する。脆弱性の正となる姿勢は毎リリースの SCA（`cargo audit`＋`osv-scanner`、および現物の埋め込みリストに対する `cargo audit bin`。[security-assessment.md](../docs/dev-prog/security-assessment.md) に記録）であり、SBOM はそのスキャン対象となるコンポーネントの目録である。
