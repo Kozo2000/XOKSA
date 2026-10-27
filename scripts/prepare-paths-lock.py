@@ -31,6 +31,15 @@ def records(text):
     return result
 
 
+def host_target():
+    version = subprocess.check_output(["rustc", "-vV"], text=True)
+    hosts = [line.split(":", 1)[1].strip() for line in version.splitlines()
+             if line.startswith("host: ")]
+    if len(hosts) != 1 or not hosts[0]:
+        raise ValueError("Cannot determine the pinned compiler host target")
+    return hosts[0]
+
+
 def prepare(root):
     source = root / "Cargo.lock"
     destination = root / "xoksa-paths/Cargo.lock"
@@ -40,6 +49,7 @@ def prepare(root):
     allowed = records(original.decode())
     destination.write_bytes(original)
     subprocess.run(["cargo", "metadata", "--offline", "--format-version", "1",
+                    "--filter-platform", host_target(),
                     "--manifest-path", str(root / "xoksa-paths/Cargo.toml")],
                    check=True, stdout=subprocess.DEVNULL)
     generated = records(destination.read_text())
