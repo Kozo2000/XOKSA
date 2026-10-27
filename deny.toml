@@ -17,6 +17,17 @@ ignore = [
     # NOT shipped in the WASM, not vulnerabilities. See security-assessment.md.
     { id = "RUSTSEC-2024-0436", reason = "paste — unmaintained; build-time proc-macro via Leptos" },
     { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 — unmaintained; build-time proc-macro via Leptos" },
+    # Existing desktop/setup assessment: Tauri -> urlpattern -> unic 0.9.0.
+    # These five RustSec notices are informational="unmaintained", with no
+    # patched unic release. They are already recorded in the v2.9.13 Windows
+    # shipping assessment. Retain that explicit maintenance-risk acceptance;
+    # revisit when Tauri/urlpattern removes this dependency. cargo audit and
+    # OSV continue to report them. No vulnerability or yanked-version exception.
+    { id = "RUSTSEC-2025-0081", reason = "unic-char-property 0.9.0 — maintenance-only notice, no patched release; Tauri/urlpattern; existing v2.9.13 shipping assessment" },
+    { id = "RUSTSEC-2025-0075", reason = "unic-char-range 0.9.0 — maintenance-only notice, no patched release; Tauri/urlpattern; existing v2.9.13 shipping assessment" },
+    { id = "RUSTSEC-2025-0080", reason = "unic-common 0.9.0 — maintenance-only notice, no patched release; Tauri/urlpattern; existing v2.9.13 shipping assessment" },
+    { id = "RUSTSEC-2025-0100", reason = "unic-ucd-ident 0.9.0 — maintenance-only notice, no patched release; Tauri/urlpattern; existing v2.9.13 shipping assessment" },
+    { id = "RUSTSEC-2025-0098", reason = "unic-ucd-version 0.9.0 — maintenance-only notice, no patched release; Tauri/urlpattern; existing v2.9.13 shipping assessment" },
 ]
 
 [licenses]

@@ -268,8 +268,10 @@ API keys are important assets, and the design minimizes their exposure time.
 
 To manage the risk of known vulnerabilities lurking in dependent libraries, scanning using the RustSec advisory database is incorporated into the development process.
 
-- **Continuous verification**: before a push, `scripts/check.sh` runs the required local source checks, including `cargo audit` over the dependent libraries. A missing tool is not a passing scan. The scheduled advisory workflow also remains active. `cargo deny` runs in the same local inspection, covering what an advisory scan does not: **licence and source compliance**. A new transitive dependency can arrive under a licence the allowlist has never been asked about, which is a release-blocking fact that no test or lint reports. `cargo machete` prunes unused dependencies in the same local inspection.
+- **Continuous verification**: `ci.yml` runs `scripts/check.sh` across all workspaces and produces artifacts only after the checks pass. Local pre-push checks do not replace CI. A missing tool is not a passing scan. The scheduled advisory workflow also remains active. `cargo deny` runs in the same CI run, covering what an advisory scan does not: **licence and source compliance**. A new transitive dependency can arrive under a licence the allowlist has never been asked about, which is a release-blocking fact that no test or lint reports. `cargo machete` prunes unused dependencies in the same run.
 - **Publication of scan results**: per-release SCA results, bound to each artifact's hash, are recorded in the [shipping inspection](./security-assessment.md).
+
+**Existing maintenance notices.** The desktop and settings app include `unic-*` 0.9.0 through Tauri and `urlpattern`. RustSec classifies the five notices as `unmaintained`, with no patched release: RUSTSEC-2025-0081 (`unic-char-property`), -0075 (`unic-char-range`), -0080 (`unic-common`), -0100 (`unic-ucd-ident`) and -0098 (`unic-ucd-version`). The reasoned entries in `deny.toml` retain the assessment already recorded for v2.9.13 Windows. Audit and OSV still report the notices. Revisit the entries when the upstream dependency is removed; vulnerability and yanked-version checks remain mandatory.
 
 #### SBOM (Software Bill of Materials) Provision
 
@@ -653,8 +655,10 @@ APIキーは重要な資産であり、その露出時間を最小化する設�
 
 依存ライブラリに潜む既知の脆弱性リスクを管理するため、RustSec アドバイザリデータベースを用いたスキャンを開発工程に組み込んでいます。
 
-- **継続的な検証**: push 前に `scripts/check.sh` で必須のローカルのソース検査を行い、全依存ライブラリに対して `cargo audit` を実行します。ツールが無くて実行していない場合は合格として扱いません。定時の勧告スキャンも維持します。同じローカル検査で `cargo deny` も実行し、脆弱性スキャンでは見えないもの——**ライセンスとソースの適合**——を担います。新しい推移的依存が、許可リストに一度も問われたことのないライセンスで入ってくることがあり、これはテストにも lint にも現れないがリリースを止める事実です。あわせて `cargo machete` が未使用の依存を刈ります。
+- **継続的な検証**: `ci.yml` の1つの実行内で、`scripts/check.sh` が全workspaceの検査と依存検査を行い、その成功後に成果物を出します。ローカルのpush前検査はCIを代替しません。ツールが無くて実行していない場合は合格として扱いません。定時の勧告スキャンも維持します。同じCIの実行内で `cargo deny` も実行し、脆弱性スキャンでは見えないもの——**ライセンスとソースの適合**——を担います。新しい推移的依存が、許可リストに一度も問われたことのないライセンスで入ってくることがあり、これはテストにも lint にも現れないがリリースを止める事実です。あわせて `cargo machete` が未使用の依存を刈ります。
 - **スキャン結果の公開**: リリースごとの SCA 結果を、各現物のハッシュに紐づけて[出荷検査](./security-assessment.md)に記録します。
+
+**既存の保守終了通知。** デスクトップと設定アプリはTauriと `urlpattern` を経由して `unic-*` 0.9.0を含む。RustSecは5件を `unmaintained` と分類し、修正版はない。RUSTSEC-2025-0081（`unic-char-property`）、-0075（`unic-char-range`）、-0080（`unic-common`）、-0100（`unic-ucd-ident`）、-0098（`unic-ucd-version`）である。`deny.toml` の理由付き例外は、既存のv2.9.13 Windows記録の評価を引き継ぐ。auditとOSVでは通知を引き続き報告する。上流で依存が外れた際に例外を見直し、脆弱性と取り下げ版の検査は必須のままとする。
 
 #### SBOM (Software Bill of Materials) の提供
 

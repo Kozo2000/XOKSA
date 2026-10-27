@@ -89,53 +89,22 @@ integration tests + 5 no-drift tests** (run `cargo test` to confirm).
 
 ## CI (GitHub Actions)
 
-### Overview
+`ci.yml` is the only CI entry point. After source, dependency or CI-definition changes reach `main`, it starts one run containing the checks and builds for macOS and Windows. Documentation/SBOM-only changes, work-branch pushes and PR activity do not start it. Windows signing and packaging continue in the same run after owner approval. The order and protection settings are in [the operations policy](github-operations-policy.md) §5-4.
 
-Release builds run automatically after source changes are merged into `main`. Each OS uses one workflow run. Windows pauses that run for local signing and resumes packaging after owner approval. The complete order and protection settings are in [the operations policy](github-operations-policy.md) §5-4. `ci.yml` is manual-only; the quality checks below remain required locally.
+`scripts/check.sh` runs in the OS jobs before artifact upload. It requires `cargo-audit`, `cargo-deny` and `cargo-machete`; a missing tool or failed check fails the job.
 
-### Execution Timing
+| Check | Scope |
+| :--- | :--- |
+| fmt, clippy | Engine, WASM frontend, desktop, settings app, paths |
+| test | Engine, desktop, settings app, paths |
+| audit, deny | All five workspaces; deny uses the native host target or `wasm32-unknown-unknown` as appropriate |
+| machete | Repository manifests |
+| Build and payload gates | Both OS artifacts, locked dependencies, sidecar versions and identifying build paths |
 
-- A source-path change listed in the release workflows is pushed to `main`.
-- Documentation/SBOM-only changes and work-branch/PR activity start no release build.
-
-### Check Contents
-
-Job **Format / Lint / Test** (executed in order):
-
-| Step | Command | Purpose |
-|---|---|---|
-| 1 | `cargo fmt -- --check` | Enforce uniform code formatting |
-| 2 | `cargo clippy -- -D warnings` | Enforce zero warnings |
-| 3 | `cargo test -q` | Verify all tests pass |
-
-Job **cargo audit** (dependency vulnerabilities):
-
-| Step | Command | Purpose |
-|---|---|---|
-| 1 | `cargo audit` | Native crate advisory scan |
-| 2 | `cargo audit -f webui-leptos/Cargo.lock` | WASM frontend advisory scan |
-| 3 | `cargo deny check` | Advisories **and** licence / source compliance |
-| 4 | `cargo deny --manifest-path webui-leptos/Cargo.toml --config deny.toml check` | Same, for the WASM frontend |
-| 5 | `cargo machete` | Unused dependencies |
-
-`cargo deny` is the step most easily forgotten, and it fails on things the other
-checks cannot see: a new transitive dependency can arrive under a licence the
-allowlist has never been asked about. That is exactly what happened in #159 —
-`reqwest` 0.13 pulled in `webpki-root-certs` under CDLA-Permissive-2.0 and left
-`main` red, although `fmt`, `clippy` and `test` were all green locally.
-
-### Notes
-
-- Due to dependency on `native-tls`, `libssl-dev` is pre-installed in the CI environment (ubuntu-latest).
-- Cargo build cache is saved/restored with `Cargo.lock` hash as the key (for speed).
-- Verify the required local results before merging; the four manual-only `ci.yml` jobs are not required pre-merge status checks. A failed release CI blocks publication.
-
-### Local Pre-check (equivalent to CI)
+Local pre-push checks use the same script and require the generated frontend and sidecars. They do not replace CI. A failed or incomplete CI run blocks publication.
 
 ```bash
-cargo fmt -- --check
-cargo clippy -- -D warnings
-cargo test -q
+bash scripts/check.sh
 ```
 
 ## File & Directory Naming Convention
@@ -255,53 +224,22 @@ cargo test <名前>   # 名前に部分一致するテストのみ実行（例: 
 
 ## CI（GitHub Actions）
 
-### 概要
+CIの起動入口は `ci.yml` だけとする。ソース・依存・CI定義の変更が `main` に入ると、macOSとWindowsの検査とビルドを含む実行を1つ起動する。文書・SBOMだけの変更、作業ブランチへのpush、PRの操作では起動しない。Windowsの署名待ちと梱包も、オーナーの承認後に同じ実行で続ける。工程と保護設定は[運用ポリシー](github-operations-policy.md) §5-4 に記載する。
 
-ソースの変更を `main` にマージした後、出荷ビルドを自動実行します。CI の実行は各 OS で 1 回です。Windows は手元での署名のため同じ実行を一時停止し、オーナーの承認後に梱包を再開します。全工程と保護設定は[運用ポリシー](github-operations-policy.md) §5-4 に記載します。`ci.yml` は手動専用とし、以下の品質検査は引き続きローカルで必須です。
+OS別ジョブ内で、成果物を出す前に `scripts/check.sh` を実行する。`cargo-audit`・`cargo-deny`・`cargo-machete` は必須で、不足や検査失敗があればジョブを失敗にする。
 
-### 実行タイミング
+| 検査 | 対象 |
+| :--- | :--- |
+| fmt・clippy | エンジン、WASMフロントエンド、デスクトップ、設定アプリ、paths |
+| test | エンジン、デスクトップ、設定アプリ、paths |
+| audit・deny | 全5workspace。denyは各ネイティブhostまたは `wasm32-unknown-unknown` を対象にする |
+| machete | リポジトリ内のmanifest |
+| ビルドと現物のゲート | 両OSの現物、固定依存、sidecarの版数、個人のビルドパス |
 
-- 出荷ビルドのワークフローに列挙したソースのパスを変更して `main` に push したとき。
-- 文書と SBOM だけの変更、作業ブランチへの push、PR の作成と更新では出荷ビルドを起動しない。
-
-### チェック内容
-
-ジョブ **Format / Lint / Test**（順番に実行）:
-
-| ステップ | コマンド | 目的 |
-|---|---|---|
-| 1 | `cargo fmt -- --check` | コードフォーマットの統一 |
-| 2 | `cargo clippy -- -D warnings` | 警告ゼロの強制 |
-| 3 | `cargo test -q` | 全テスト通過の確認 |
-
-ジョブ **cargo audit**（依存の脆弱性スキャン）:
-
-| ステップ | コマンド | 目的 |
-|---|---|---|
-| 1 | `cargo audit` | ネイティブ crate の脆弱性スキャン |
-| 2 | `cargo audit -f webui-leptos/Cargo.lock` | WASM フロントエンドの脆弱性スキャン |
-| 3 | `cargo deny check` | 脆弱性**および**ライセンス・ソースの適合 |
-| 4 | `cargo deny --manifest-path webui-leptos/Cargo.toml --config deny.toml check` | 同じことを WASM フロントエンドに対して |
-| 5 | `cargo machete` | 未使用の依存 |
-
-`cargo deny` は最も忘れやすく、かつ他のチェックでは見えないものに落ちる。新しい推移的
-依存が、許可リストに一度も問われたことのないライセンスで入ってくることがあるためである。
-#159 がまさにそれで、`reqwest` 0.13 が `webpki-root-certs` を CDLA-Permissive-2.0 で
-引き込み、手元では `fmt`・`clippy`・`test` がすべて green だったにもかかわらず `main` の
-CI を赤にした。
-
-### 注意点
-
-- `native-tls` ライブラリの依存により、CI 実行環境（ubuntu-latest）では `libssl-dev` を事前インストールしています。
-- Cargo のビルドキャッシュは `Cargo.lock` のハッシュをキーに保存・復元します（高速化）。
-- マージ前に必要なローカルの検証結果を確認する。手動専用の `ci.yml` の 4 ジョブはマージ前の必須ステータスチェックに登録しない。出荷 CI が失敗した場合は公開しない。
-
-### ローカルでの事前確認（CI と同等）
+push前のローカル検査でも同じスクリプトを使い、生成済みフロントエンドとsidecarを必要とする。ローカル検査でCIを代替しない。CIが失敗または未完了の場合は公開しない。
 
 ```bash
-cargo fmt -- --check
-cargo clippy -- -D warnings
-cargo test -q
+bash scripts/check.sh
 ```
 
 ## ファイル・ディレクトリ命名規約
