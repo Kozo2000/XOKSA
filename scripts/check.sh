@@ -13,6 +13,22 @@ for tool in cargo cargo-audit cargo-deny cargo-machete; do
 done
 [ "$missing" -eq 0 ] || exit 1
 
+# xoksa-paths is a path dependency, so its standalone lock stays gitignored.
+# Prepare it from the fixed consumer dependencies before running --locked gates.
+lock_python=
+for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && \
+        "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
+        lock_python="$candidate"
+        break
+    fi
+done
+if [ -z "$lock_python" ]; then
+    printf 'Required tool missing: Python 3.8 or newer\n' >&2
+    exit 1
+fi
+"$lock_python" scripts/prepare-paths-lock.py || exit 1
+
 fail=0
 run() {
     local label="$1"
