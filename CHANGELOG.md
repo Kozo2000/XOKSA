@@ -16,7 +16,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ---
 
-## [2.9.13] — unreleased
+## [2.9.13] — shipped 2026-10-24 (Windows)
 
 After 2.9.12 shipped, advisories were published against crates in the shipped dependency tree. RustSec publishes no CVSS score for any of them:
 
@@ -167,7 +167,7 @@ All three are in extracting an archive to the filesystem (`extract`), which XOKS
 
 ---
 
-## [2.9.13] — 未リリース
+## [2.9.13] — 出荷済み（Windows 2026-10-24）
 
 2.9.12 の出荷後に、出荷物の依存に含まれる部品に勧告が公表された。いずれも、RustSec に CVSS の点数は載っていない。
 

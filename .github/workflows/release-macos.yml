@@ -26,35 +26,12 @@ name: Release build (macOS)
 #     (§C.1 rule 2).
 
 on:
-  # Source landing on `main` builds the artifact that will be signed, inspected
-  # and shipped — the build is of what was merged, not of a branch that may
-  # differ from it. Documentation and SBOM changes start no build.
-  push:
-    branches: [ 'main' ]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'build.rs'
-      - 'webui-leptos/**'
-      - 'xoksa-desktop/**'
-      - 'xoksa-setup/**'
-      - 'xoksa-paths/**'
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
-      - 'deny.toml'
-      - 'rust-toolchain.toml'
-      - 'scripts/**'
-      - '!**/*.md'
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      ref:
-        description: "Commit, tag or branch to build (defaults to the branch this is dispatched on)"
-        required: false
+      source_sha:
+        description: "Immutable source commit from CI"
+        required: true
         type: string
-
-concurrency:
-  group: ${{ github.workflow }}-${{ inputs.ref || github.ref }}
-  cancel-in-progress: false # a release build is never worth cancelling halfway
 
 # Least privilege: reads the repo, writes nothing back. Artifacts go to the run,
 # not to a release. No secrets are used, so there is nothing here to exfiltrate.
@@ -67,6 +44,9 @@ env:
   # names these versions beside the artifact hashes.
   TRUNK_VERSION: "0.21.14"
   TAURI_CLI_VERSION: "2.11.4"
+  CARGO_AUDIT_VERSION: "0.22.0"
+  CARGO_DENY_VERSION: "0.20.2"
+  CARGO_MACHETE_VERSION: "0.9.2"
 
 jobs:
   build:
@@ -81,7 +61,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ inputs.source_sha }}
           persist-credentials: false # no GITHUB_TOKEN left in .git/config
 
       - name: Read the pinned toolchain
@@ -93,12 +73,13 @@ jobs:
         uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
           toolchain: ${{ steps.rust.outputs.channel }}
+          components: rustfmt, clippy
           targets: wasm32-unknown-unknown # the Leptos frontend
 
       # trunk and tauri-cli are compiled here rather than downloaded from a
       # third-party action, so the only new supply-chain input is crates.io,
       # which `cargo audit` and `cargo deny` already cover. The cache key holds
-      # both versions, so a bump rebuilds them and nothing else.
+      # tool versions, so changing a pin invalidates the tools cache.
       - name: Cache build tools
         id: tools-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -106,13 +87,19 @@ jobs:
           path: |
             ~/.cargo/bin/trunk
             ~/.cargo/bin/cargo-tauri
-          key: ${{ runner.os }}-tools-trunk${{ env.TRUNK_VERSION }}-tauri${{ env.TAURI_CLI_VERSION }}
+            ~/.cargo/bin/cargo-audit
+            ~/.cargo/bin/cargo-deny
+            ~/.cargo/bin/cargo-machete
+          key: ${{ runner.os }}-${{ runner.arch }}-tools-trunk${{ env.TRUNK_VERSION }}-tauri${{ env.TAURI_CLI_VERSION }}-audit${{ env.CARGO_AUDIT_VERSION }}-deny${{ env.CARGO_DENY_VERSION }}-machete${{ env.CARGO_MACHETE_VERSION }}
 
-      - name: Install trunk and tauri-cli
+      - name: Install pinned build and inspection tools
         if: steps.tools-cache.outputs.cache-hit != 'true'
         run: |
           cargo install --locked trunk@"$TRUNK_VERSION"
           cargo install --locked tauri-cli@"$TAURI_CLI_VERSION"
+          cargo install --locked cargo-audit@"$CARGO_AUDIT_VERSION"
+          cargo install --locked cargo-deny@"$CARGO_DENY_VERSION"
+          cargo install --locked cargo-machete@"$CARGO_MACHETE_VERSION"
 
       - name: Cache cargo registry
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -126,14 +113,21 @@ jobs:
 
       # Recorded in the run log so the §C.4 provenance line can name the exact
       # toolchain that produced these hashes.
+      - name: Fetch version tags
+        shell: bash
+        run: git fetch --no-tags --depth=1 origin '+refs/tags/*:refs/tags/*'
+
       - name: Record build provenance
         run: |
           echo "commit : $(git rev-parse HEAD)"
-          echo "ref    : ${{ inputs.ref || github.ref }}"
+          echo "ref    : ${{ inputs.source_sha }}"
           rustc -vV
           cargo -V
           trunk --version
           cargo tauri --version
+          cargo audit --version
+          cargo deny --version
+          cargo machete --version
           echo "version: $(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
 
       # Belt-and-braces beside the runner account: shortens the registry and
@@ -149,14 +143,14 @@ jobs:
       # frontend, engine, settings app, sidecars, bundle.
       - name: Build the WASM frontend (trunk)
         working-directory: webui-leptos
-        run: trunk build --release
+        run: trunk build --release --locked
 
       - name: Build the engine
-        run: cargo build --release --bin xoksa
+        run: cargo build --release --locked --bin xoksa
 
       - name: Build the settings app
         working-directory: xoksa-setup
-        run: cargo build --release
+        run: cargo build --release --locked
 
       # Stages BOTH sidecars and refuses to stage one whose version does not
       # match Cargo.toml, so a missed rebuild fails here rather than shipping —
@@ -164,12 +158,18 @@ jobs:
       - name: Stage the Tauri sidecars
         run: bash scripts/bundle-engine.sh
 
+      # Real frontend and sidecars already exist. A failed or missing check
+      # stops this job before packaging/uploading any artifact.
+      - name: Check source and dependencies
+        shell: bash
+        run: bash scripts/check.sh
+
       # No APPLE_SIGNING_IDENTITY in the environment, so tauri leaves the bundle
       # unsigned — which is what the signing step on the owner's machine expects.
       # `--bundles app` skips the DMG this workflow deliberately does not ship.
       - name: Build the .app bundle
         working-directory: xoksa-desktop
-        run: cargo tauri build --bundles app
+        run: cargo tauri build --bundles app -- --locked
 
       - name: Locate the bundle
         run: |
@@ -212,6 +212,10 @@ jobs:
       # `shasum` because macOS ships no `sha256sum`. The bundle copies are hashed
       # rather than the standalone binaries: those are the files that ship, and
       # the signing step needs a before-signature hash to compare against.
+      - name: Gate — build did not change locked dependencies
+        shell: bash
+        run: git diff --exit-code -- Cargo.lock webui-leptos/Cargo.lock xoksa-desktop/Cargo.lock xoksa-setup/Cargo.lock xoksa-paths/Cargo.lock
+
       - name: Hash the artifacts
         run: |
           wasm="$(find webui-leptos/dist -name '*_bg.wasm' | head -1)"

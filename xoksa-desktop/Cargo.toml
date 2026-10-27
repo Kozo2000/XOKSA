@@ -13,6 +13,7 @@ name = "xoksa-desktop"
 version = "2.9.13"
 edition = "2021"
 publish = false
+license = "MIT"
 description = "XOKSA desktop app (thin UI shell that launches the xoksa engine)"
 
 # Windows PE version resource. tauri-build embeds a single VERSIONINFO via

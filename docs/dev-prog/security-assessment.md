@@ -232,7 +232,7 @@ A shipping inspection binds to **one frozen local artifact by hash**: build once
 | G1 | resource-exhaustion DoS | admission-capped (503); stays responsive | PASS |
 | H1 | prompt injection | frame holds; news titles sanitised at ingestion; override/leak refused (#7) | PASS |
 | H2 | LLM number tampering | SOT unchanged; output-integrity guard on all providers | PASS |
-| I1–I2 | dependency SCA (native / webui) | 0 vulnerabilities; warnings only — two unmaintained proc-macro crates (build-time, not in the shipped WASM) and `event-listener` 5.4.1's unsound `RUSTSEC-2026-0221`, which **is** in the shipped WASM but needs threads that its non-shared memory (`limits_flags=0x00`) rules out | PASS |
+| I1–I2 | dependency SCA (native / webui) | 0 vulnerabilities; warnings only — two unmaintained proc-macro crates (build-time, not in the shipped WASM) and `event-listener` 5.4.1's unsound `RUSTSEC-2026-0221`, which **is** in the shipped WASM but needs threads that its non-shared memory (`limits_flags=0x00`) rules out; `xxhash-rust` GHSA-6g2r-675j-hx59 affects `xxh3`, which is disabled in the WASM feature graph (only `const_xxh64` is enabled) | PASS |
 | J1 | `0.0.0.0` exposed access | fail-closed — always token-gated (auto-generated), private/loopback source addresses only (`401` / `403`) | PASS (re-measured over the LAN at v2.9.8, with the token gate) |
 | K1–K3 | cross-client isolation / summary self-DoS / unbounded concurrency | isolated `sid`; per-session lock; admission cap | PASS |
 
@@ -1314,7 +1314,7 @@ Slack・Discord・Google Chat では、秘密は **webhook URL そのもの**で
 | G1 | リソース枯渇 DoS | 入場上限（503）・応答維持 | 合格 |
 | H1 | プロンプトインジェクション | フレーム保持・タイトルを取り込み境界で無害化・上書き/奪取拒否（#7） | 合格 |
 | H2 | LLM 数値改ざん | SOT 不変・出力整合ガードを全プロバイダで | 合格 |
-| I1–I2 | 依存 SCA（native / webui） | 脆弱性0。警告のみ——unmaintained な proc-macro 2 件（ビルド時・配布 WASM 非搭載）と、`event-listener` 5.4.1 の unsound `RUSTSEC-2026-0221`。後者は配布 WASM に**載る**が、非共有メモリ（`limits_flags=0x00`）のためスレッドが無く到達不能 | 合格 |
+| I1–I2 | 依存 SCA（native / webui） | 脆弱性0。警告のみ——unmaintained な proc-macro 2 件（ビルド時・配布 WASM 非搭載）と、`event-listener` 5.4.1 の unsound `RUSTSEC-2026-0221`。後者は配布 WASM に**載る**が、非共有メモリ（`limits_flags=0x00`）のためスレッドが無く到達不能。`xxhash-rust` GHSA-6g2r-675j-hx59 の対象機能 `xxh3` はWASM向け機能グラフで無効（有効なのは `const_xxh64`） | 合格 |
 | J1 | `0.0.0.0` 公開アクセス | fail-closed——常にトークン必須（自動生成）・接続元はプライベート／ループバック限定（`401`／`403`） | 合格（v2.9.8 でトークンゲートごと LAN 経由で再実測） |
 | K1–K3 | クロスクライアント分離 / summary 自己DoS / 無制限並行 | `sid` 分離・セッション毎ロック・入場上限 | 合格 |
 

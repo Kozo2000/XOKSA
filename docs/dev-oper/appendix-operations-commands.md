@@ -303,7 +303,7 @@ git commit -m "ci: fix <内容>"
 
 git push
 ＃対象：開発者 / Target: Developer
-＃修正を送信し CI を再実行 / Send fix and re-run CI
+＃修正を送信。CIはmainへのマージ後に1回起動 / Push the fix. CI starts once after merge into main
 
 gh pr edit --remove-label "blocked:ci-failed"
 ＃対象：開発者 / Target: Developer

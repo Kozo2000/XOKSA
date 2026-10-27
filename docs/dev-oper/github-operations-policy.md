@@ -154,7 +154,7 @@
 - Submit as small PRs (specific file count / diff line count thresholds according to project definition).
 - Clearly state purpose / background / changes / impact / test steps in PR body, and link to Issue.
 - Do not include secrets or artifacts in PRs.
-- **Each OS release uses one CI workflow run.** Merge the source PR, build automatically, sign and inspect, then merge one PR containing all inspection results. The record PR starts no CI. Windows signing resumes the same run for packaging; it does not start a second run.
+- **CI is one workflow run.** Merge the source PR; `ci.yml` checks the source and dependencies and builds both OS artifacts in that run. Required tools, checks and builds must all pass before artifacts are uploaded. Sign and inspect the artifacts, then merge one PR containing all inspection results. The record PR starts no CI. Windows signing resumes the same run for packaging.
 - A branch name starts with the version its work will ship in: `v<version>`, or `v<version>-<keyword>` with the keyword naming the work. Lower case, digits, dots and hyphens only. No branch without a version. No prefix: a word such as `release` states a status, and a status does not belong in a name. Type is carried by the label, not by the branch name.
 
 ### Recommended (SHOULD)
@@ -245,33 +245,33 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 
 ### 5-4. Release process (the order of shipping)
 
-**What "publication" means.** A release is **published** when the shipped artifact is stored in `dist/<version>/` and is available on the releases page, <https://github.com/Kozo2000/XOKSA/releases>. Both conditions together are the definition. **Publication is the last step of a release, and the release is complete at that moment.** Everything a release needs — the source, the build, the signature, every inspection including the external scans, the SBOM and the shipping record — is merged before it, The source and inspection record are merged through the two PRs in the table below. Each OS uses one CI workflow run.
+**What "publication" means.** A release is **published** when the shipped artifact is stored in `dist/<version>/` and is available on the releases page, <https://github.com/Kozo2000/XOKSA/releases>. Both conditions together are the definition. **Publication is the last step of a release, and the release is complete at that moment.** Everything a release needs — the source, the build, the signature, every inspection including the external scans, the SBOM and the shipping record — is merged before it, The source and inspection record are merged through the two PRs in the table below. CI is one workflow run containing the checks and builds for macOS and Windows.
 
 **The order, and it is strict.**
 
-| Step | Work | macOS CI | Windows CI |
-| :--- | :--- | :--- | :--- |
-| 1 | Merge the source change through a PR. | No | No |
-| 2 | Automatically build the shipped artifact from that merged source. | Start the one run | Start the one run |
-| 3 | Sign locally; on macOS notarize and staple as well. On Windows, sign the three executables, resume the waiting run to package the MSI without compiling, then sign the MSI locally. | No | Resume the same run |
-| 4 | Inspect the signed artifact and obtain every result in [the shipping inspection](../dev-prog/security-assessment.md) §C.1, including the external scans. Write the record only after all results are available. | No | No |
-| 5 | Merge the §C.4 inspection record through one PR. | No | No |
-| 6 | Tag the commit containing the code and store the artifact in `dist/<version>/`. | No | No |
-| 7 | Publish by attaching the artifact to the release. The release is complete here. | No | No |
+| Step | Work | CI |
+| :--- | :--- | :--- |
+| 1 | Merge the source change through a PR. | No |
+| 2 | Run the required checks and build both OS artifacts from that merged source within CI. | Start the run |
+| 3 | Sign locally; on macOS notarize and staple as well. On Windows, sign the three executables, resume the waiting run to package the MSI without compiling, then sign the MSI locally. | Resume the same run for Windows packaging |
+| 4 | Inspect the signed artifact and obtain every result in [the shipping inspection](../dev-prog/security-assessment.md) §C.1, including the external scans. Write the record only after all results are available. | No |
+| 5 | Merge the §C.4 inspection record through one PR. | No |
+| 6 | Tag the commit containing the code and store the artifact in `dist/<version>/`. | No |
+| 7 | Publish by attaching the artifact to the release. The release is complete here. | No |
 
-**Two PRs: source at step 1 and inspection record at step 5. One CI workflow run per OS.** In Windows step 3 the existing run resumes; no new workflow run is dispatched. A release for both OSs therefore has two runs in total, one for each OS. The legacy `ci.yml` quality workflow is manual-only and is not part of this release path. Source checks remain mandatory locally and in the shipping inspection. A skipped supply-chain tool is not a passing check. The scheduled advisory scan remains independent of release builds.
+**Two PRs: source at step 1 and inspection record at step 5. CI is one workflow run.** `ci.yml` is the only entry point. In that run, `scripts/check.sh` checks every workspace, including the settings app, with fmt, clippy, tests where executable, audit, deny and unused-dependency checks, then produces the OS artifacts. A missing tool or failed check stops artifact upload. Local checks do not replace CI. Windows signing and packaging continue in the same run. The scheduled advisory scan remains separate from release work.
 
-**Automatic start conditions.** A push to `main` that changes a path listed in the `push.paths` of `release-macos.yml` or `release-windows.yml` starts the corresponding build. PR creation, work-branch pushes, and documentation/SBOM-only changes start no release build. Both workflows use the same source-path list. Manual release-build dispatch is for an explicitly requested run, not a second routine step.
+**Automatic start conditions.** A push to `main` that changes a path listed in `ci.yml` under `push.paths` starts CI once. This includes source, dependency and CI-definition changes. PR creation, work-branch pushes and documentation/SBOM-only changes do not start CI. The OS files are called from `ci.yml` and have no independent trigger. Manual dispatch, when explicitly requested, starts `ci.yml`.
 
 **Main protection.** Do not register `Format / Lint / Test`, `cargo audit`, `cargo deny`, or `cargo machete` as required pre-merge status checks: they no longer run automatically on PRs. The maintainer verifies required local results before merging. Keep the PR requirement, stale-review dismissal, and the force-push/deletion protections. Do not bypass protection to merge.
 
 **Release build recipe — stated once here, so a §C.4 record names its commit, host and hashes instead of restating the steps.** Restating them is how a step was lost: v2.9.2's record said "`cargo build --release` in `xoksa-setup` staged as the second sidecar", and from v2.9.3 through v2.9.8 five records shortened that to "`xoksa-setup` staged as the second sidecar" — after which a v2.9.9 build staged a 2.9.8 settings binary, because nothing in the written recipe said to build it.
 
-1. `cd webui-leptos && trunk build --release` — the WASM frontend the engine embeds.
-2. `cargo build --release --bin xoksa` — the engine.
-3. `cd xoksa-setup && cargo build --release` — the settings app. **Building it is part of the recipe, not only staging it:** it is a separate workspace that a root-level build never touches, and it ships inside the installer as the second sidecar.
+1. `cd webui-leptos && trunk build --release --locked` — the WASM frontend the engine embeds.
+2. `cargo build --release --locked --bin xoksa` — the engine.
+3. `cd xoksa-setup && cargo build --release --locked` — the settings app. **Building it is part of the recipe, not only staging it:** it is a separate workspace that a root-level build never touches, and it ships inside the installer as the second sidecar.
 4. `scripts/bundle-engine.sh` — stages **both** binaries as Tauri sidecars (`bundle.externalBin`). It resolves and checks both before copying either, and refuses to stage a binary that does not report the version in `Cargo.toml`, so a forgotten rebuild fails the bundle instead of shipping.
-5. `cd xoksa-desktop && cargo tauri build` — the installer (with `APPLE_SIGNING_IDENTITY` set on macOS).
+5. `cd xoksa-desktop && cargo tauri build -- --locked` — the installer (with `APPLE_SIGNING_IDENTITY` set on macOS).
 
 **From v2.9.9 the release build runs on CI, not on a developer machine.** `.github/workflows/release-windows.yml` performs steps 1–5 above on a `windows-latest` runner and, before uploading, runs `scripts/check-no-host-paths.sh` over every artifact. The reason is §C.4's v2.9.9 record: rustc bakes each crate's source path into the binary for its panic messages, so a developer-machine build ships the builder's account name, and neither `strip = true` nor `--remap-path-prefix` removes all of it. A local build is still fine for development; it is no longer what gets inspected or shipped.
 
@@ -283,7 +283,7 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 2. **Publish after the merge, never before.**
 3. **Tag the commit that actually contains the code.** Do not repoint a published tag or use a force push; §4 applies to tags as well as branches.
 4. **Name the source commit and its branch in the §C.4 record**, beside the artifact hashes.
-5. **An inspected artifact is bound to the single commit it was built from.** Name that commit in §C.4. Before publication compare `git diff --name-only <build commit> origin/main` with the source paths listed under `push.paths` in both release-build workflows. If any listed path changed, rebuild automatically from the new merged source and repeat every stage in §C.1; the earlier artifact is not published. If no listed path changed, publish the inspected artifact. Documentation, inspection records, SBOM and `CHANGELOG.md` alone do not start a rebuild. Keep this decision and both workflows' path lists aligned.
+5. **An inspected artifact is bound to the single commit it was built from.** Name that commit in §C.4. Before publication compare `git diff --name-only <build commit> origin/main` with the paths listed under `push.paths` in `ci.yml`. If any listed path changed, rebuild automatically from the new merged source and repeat every stage in §C.1; the earlier artifact is not published. If no listed path changed, publish the inspected artifact. Documentation, inspection records, SBOM and `CHANGELOG.md` alone do not start a rebuild. Keep this decision and the `ci.yml` path list aligned.
 6. **Never delete a release branch.** Squash & Merge folds a branch's commits into one new commit on `main`, so the commit a record names survives **only on that branch** — measured at v2.9.8: `5065da8` (v2.9.7) and `e8b973d` (v2.9.8) are both unreachable from `main` and present only on `origin/release/v2.9.7` and `origin/release/v2.9.8`. Deleting the branch would leave the record pointing at nothing. `deleteBranchOnMerge` is therefore off for this repository.
 7. **A §C.4 heading states dated inspection facts, never mutable status.** Do not write "not yet shipped" in a heading. The current state and publication timestamp live in the handover note and are updated there after publication. Do not require a publication date to be added to §C.4 as a release-completion condition, and do not create a follow-up PR solely for that date. Existing dated publication facts remain valid.
 
@@ -480,7 +480,7 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 - 小さな PR で提出する（具体的なファイル数・差分行数の閾値はプロジェクト定義に準じる）。
 - PR 本文に 目的／背景／変更点／影響／テスト手順 を明記し、Issue へ紐付け。
 - 秘密情報・生成物は PR に含めない。
-- **各 OS のリリースで CI の実行は 1 回。** ソースの PR をマージし、自動ビルド、署名、検査の後に、全検査結果をまとめた PR を 1 本マージする。記録の PR では CI を起動しない。Windows の署名後の梱包は同じ実行の再開で行い、2 回目の実行を起動しない。
+- **CI は1つの実行である。** ソースのPRをマージすると、`ci.yml` がその実行内でソースと依存を検査し、両OSの現物をビルドする。必須ツール・検査・ビルドがすべて揃って成功した場合だけ成果物を出す。署名・現物検査の後、検査記録のPRを1本マージする。記録のPRではCIを起動しない。Windowsの署名後の梱包も同じ実行を再開する。
 - ブランチ名は、その作業を載せる版数から始める（`v<版数>` または `v<版数>-<キーワード>`。キーワードは作業内容）。小文字・数字・ドット・ハイフンのみ。版数の無いブランチは作らない。接頭辞は付けない——`release` のような語は状態を表すものであり、状態を名前に固定しない。種別はラベルで示す。
 
 ### 推奨（SHOULD）
@@ -571,33 +571,33 @@ Definition of Done：Squash & Merge 済み／Issue クローズ／関連ドキ�
 
 ### 5-4. リリース工程（出荷の順序）
 
-**「公開」とは何か。** リリースが**公開された**とは、出荷する現物が `dist/<版数>/` に保管され、リリースページ <https://github.com/Kozo2000/XOKSA/releases> で入手できる状態になったことをいう。この 2 つが揃った状態を公開と定義する。**公開はリリースの最終工程であり、この時点でリリースは完了する。** リリースに必要なもの——ソース・ビルド・署名・外部スキャンを含むすべての検査・SBOM・出荷検査の記録——は、すべて公開より前にマージする。ソースと検査記録は、下表の PR 2 本でマージする。CI の実行は各 OS で 1 回である。
+**「公開」とは何か。** リリースが**公開された**とは、出荷する現物が `dist/<版数>/` に保管され、リリースページ <https://github.com/Kozo2000/XOKSA/releases> で入手できる状態になったことをいう。この 2 つが揃った状態を公開と定義する。**公開はリリースの最終工程であり、この時点でリリースは完了する。** リリースに必要なもの——ソース・ビルド・署名・外部スキャンを含むすべての検査・SBOM・出荷検査の記録——は、すべて公開より前にマージする。ソースと検査記録は、下表の PR 2 本でマージする。CIは1つの実行で、macOSとWindowsの検査とビルドを行う。
 
 **順序。厳守する。**
 
-| 手順 | 内容 | macOS の CI | Windows の CI |
-| :--- | :--- | :--- | :--- |
-| 1 | ソースの変更を PR でマージする。 | ✕ | ✕ |
-| 2 | そのマージ済みソースから、出荷する現物を自動でビルドする。 | 1 回の実行を開始 | 1 回の実行を開始 |
-| 3 | 手元で署名する。macOS は公証と staple も行う。Windows は実行ファイル 3 本に署名し、待機中の実行を再開して再コンパイルせずに MSI を梱包し、その MSI に手元で署名する。 | ✕ | 同じ実行を再開 |
-| 4 | 署名済みの現物を検査し、[出荷検査](../dev-prog/security-assessment.md) §C.1 の全段階の測定結果を得る。外部スキャンの結果を含む。記録は、全段階の結果が揃ってから書く。 | ✕ | ✕ |
-| 5 | §C.4 の検査記録を PR 1 本でマージする。 | ✕ | ✕ |
-| 6 | 実体を含むコミットにタグを打ち、現物を `dist/<版数>/` に保管する。 | ✕ | ✕ |
-| 7 | 公開する——リリースに現物を添付する。この時点でリリースは完了する。 | ✕ | ✕ |
+| 手順 | 内容 | CI |
+| :--- | :--- | :--- |
+| 1 | ソースの変更を PR でマージする。 | ✕ |
+| 2 | そのマージ済みソースを、CIの同じ実行内で検査し、両OSの現物をビルドする。 | 実行を開始 |
+| 3 | 手元で署名する。macOS は公証と staple も行う。Windows は実行ファイル 3 本に署名し、待機中の実行を再開して再コンパイルせずに MSI を梱包し、その MSI に手元で署名する。 | Windowsの梱包は同じ実行を再開 |
+| 4 | 署名済みの現物を検査し、[出荷検査](../dev-prog/security-assessment.md) §C.1 の全段階の測定結果を得る。外部スキャンの結果を含む。記録は、全段階の結果が揃ってから書く。 | ✕ |
+| 5 | §C.4 の検査記録を PR 1 本でマージする。 | ✕ |
+| 6 | 実体を含むコミットにタグを打ち、現物を `dist/<版数>/` に保管する。 | ✕ |
+| 7 | 公開する——リリースに現物を添付する。この時点でリリースは完了する。 | ✕ |
 
-**PR は手順 1 のソースと手順 5 の検査記録の 2 本。CI の実行は各 OS で 1 回。** Windows の手順 3 は待機していた実行の再開であり、新しい実行を起動しない。両 OS を出荷する場合の合計は、OS ごとの 1 回を足して 2 回である。従来の品質検査用 `ci.yml` は手動専用とし、この出荷工程には含めない。ソースの検査はローカルと出荷検査で引き続き必須とする。供給網検査のツールが無くて実行を省いた場合は、合格として扱わない。定時の勧告スキャンは出荷ビルドとは独立して維持する。
+**PRは手順1のソースと手順5の検査記録の2本。CIは1つの実行である。** 起動入口は `ci.yml` だけとする。その実行内で `scripts/check.sh` が設定アプリを含む全workspaceにfmt・clippy・実行可能なtest・audit・deny・未使用依存の検査を行い、両OSの現物をビルドする。必須ツールがない場合や検査に失敗した場合は成果物を出さない。ローカル検査でCIを代替しない。Windowsの署名待ちと梱包も同じ実行の中で続ける。定時の勧告スキャンは出荷作業とは独立して維持する。
 
-**自動起動の条件。** `main` への push で `release-macos.yml` または `release-windows.yml` の `push.paths` に列挙したパスが変更されたとき、対応するビルドを起動する。PR の作成、作業ブランチへの push、文書と SBOM だけの変更では出荷ビルドを起動しない。両ワークフローのソースのパス一覧は一致させる。出荷ビルドの手動起動は明示的に依頼された場合に限り、通常の工程に 2 回目として加えない。
+**自動起動の条件。** `main` へのpushで `ci.yml` の `push.paths` に列挙したパスが変更されたとき、CIを1回起動する。対象にはソース・依存・CI定義の変更を含む。PRの作成、作業ブランチへのpush、文書とSBOMだけの変更では起動しない。OS別のファイルは `ci.yml` から呼ぶ処理であり、独立した起動条件を持たない。明示的に依頼された手動起動も `ci.yml` から行う。
 
 **main の保護設定。** `Format / Lint / Test`・`cargo audit`・`cargo deny`・`cargo machete` は、PR で自動実行しなくなるため、マージ前の必須ステータスチェックには登録しない。管理者は必要なローカルの検証結果を確認してからマージする。PR 経由の変更、追加差分による承認失効、強制 push と削除を禁止する保護は維持する。保護を迂回してマージしない。
 
 **リリースのビルド recipe — ここに 1 回だけ記す。§C.4 の記録は手順を書き直すのではなく、コミット・host・ハッシュを名乗る。** 書き直しは実際に手順を失わせた：v2.9.2 の記録は「`cargo build --release` in `xoksa-setup` を 2 本目の sidecar として配置」と書いていたが、v2.9.3 から v2.9.8 までの 5 本が「`xoksa-setup` を 2 本目の sidecar として配置」と短縮し、その結果 v2.9.9 のビルドが 2.9.8 の設定アプリを配置した——書かれた recipe のどこにも「ビルドする」と無かったためである。
 
-1. `cd webui-leptos && trunk build --release` — エンジンが内蔵する WASM フロントエンド。
-2. `cargo build --release --bin xoksa` — エンジン。
-3. `cd xoksa-setup && cargo build --release` — 設定アプリ。**配置するだけでなくビルドすることが recipe の一部である**：ルートのビルドが触らない別 workspace であり、2 本目の sidecar としてインストーラに同梱される。
+1. `cd webui-leptos && trunk build --release --locked` — エンジンが内蔵する WASM フロントエンド。
+2. `cargo build --release --locked --bin xoksa` — エンジン。
+3. `cd xoksa-setup && cargo build --release --locked` — 設定アプリ。**配置するだけでなくビルドすることが recipe の一部である**：ルートのビルドが触らない別 workspace であり、2 本目の sidecar としてインストーラに同梱される。
 4. `scripts/bundle-engine.sh` — **両方**を Tauri の sidecar として配置する（`bundle.externalBin`）。どちらかを複製する前に両方を解決・検査し、`Cargo.toml` の版数を報告しない現物は配置を拒否するので、ビルド忘れは出荷ではなくバンドルの失敗になる。
-5. `cd xoksa-desktop && cargo tauri build` — インストーラ（macOS では `APPLE_SIGNING_IDENTITY` を設定）。
+5. `cd xoksa-desktop && cargo tauri build -- --locked` — インストーラ（macOS では `APPLE_SIGNING_IDENTITY` を設定）。
 
 **v2.9.9 以降、リリースビルドは開発機ではなく CI で行う。** `.github/workflows/release-windows.yml` が上記 1〜5 を `windows-latest` ランナーで実行し、アップロード前に全現物へ `scripts/check-no-host-paths.sh` を掛ける。理由は §C.4 の v2.9.9 の記録にある——rustc は panic メッセージのために各クレートのソースパスをバイナリへ焼き込むため、開発機でのビルドはビルド者のアカウント名を出荷してしまい、`strip = true` でも `--remap-path-prefix` でも全部は消えない。開発目的のローカルビルドは従来どおりでよいが、検査と出荷の対象ではなくなった。
 
@@ -609,7 +609,7 @@ Definition of Done：Squash & Merge 済み／Issue クローズ／関連ドキ�
 2. **公開はマージの後に行う。** 順序を逆にしない。
 3. **実体を含むコミットにタグを打つ。** 公開済みタグの付け替えや強制 push はしない。§4 の禁止はブランチだけでなくタグにも適用する。
 4. **§C.4 の記録に、ソースコミットとそのブランチを現物のハッシュと並べて明記する。**
-5. **検査した現物は、ビルドしたコミット 1 つに束縛される。** そのコミットを §C.4 に明記する。公開前に `git diff --name-only <ビルド元コミット> origin/main` の出力を、両出荷ビルドの `push.paths` に列挙したソースのパスと照合する。該当するパスが 1 つでも変更されていれば、新しいマージ済みソースから自動でビルドし直し、§C.1 の全段階を測り直す。それまでの現物は公開しない。該当するパスが変更されていなければ、検査した現物を公開する。文書・検査記録・SBOM・`CHANGELOG.md` だけの変更ではビルドをやり直さない。この判定と両ワークフローのパス一覧を一致させる。
+5. **検査した現物は、ビルドしたコミット 1 つに束縛される。** そのコミットを §C.4 に明記する。公開前に `git diff --name-only <ビルド元コミット> origin/main` の出力を、`ci.yml` の `push.paths` に列挙したソースのパスと照合する。該当するパスが 1 つでも変更されていれば、新しいマージ済みソースから自動でビルドし直し、§C.1 の全段階を測り直す。それまでの現物は公開しない。該当するパスが変更されていなければ、検査した現物を公開する。文書・検査記録・SBOM・`CHANGELOG.md` だけの変更ではビルドをやり直さない。この判定と `ci.yml` のパス一覧を一致させる。
 6. **release ブランチは削除しない。** Squash & Merge はブランチのコミットを畳んで `main` に新しい 1 個を作るため、記録が名指しするコミットは**そのブランチにしか残らない**——v2.9.8 時点の実測で、`5065da8`（v2.9.7）と `e8b973d`（v2.9.8）はいずれも `main` から到達不能で、`origin/release/v2.9.7` と `origin/release/v2.9.8` にのみ存在する。ブランチを消すと記録の参照先が消える。本リポジトリで `deleteBranchOnMerge` を無効にしているのはこのためである。
 7. **§C.4 の見出しには日付つきの検査事実を書き、可変の状態を書かない。** 見出しに「未出荷」と書かない。現在の状態と公開日時は引継ぎ書に置き、公開後にそこで更新する。§C.4 への公開日の追記をリリース完了の条件にせず、その日付だけのために後追い PR を作らない。既に記録した日付つきの公開事実は有効なまま残す。
 
