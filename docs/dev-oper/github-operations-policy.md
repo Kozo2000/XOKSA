@@ -4,13 +4,13 @@
 
 > **Language sync:** English and Japanese descriptions are both authoritative. If a requirement, restriction, exception, command behavior, or operational rule appears in only one language, treat it as applying to both; the missing side is a documentation defect to be updated.
 
-## 1. Philosophy
+## 1. Basic rules
 
-- Safety: Prevent misoperations, history destruction, and secret exposure through structure.
-- Transparency: Who changed what and when is always traceable.
-- Reproducibility: Same results regardless of who does it (no dependence on individuals).
-- Single path: Do not shake operations with exceptions or verbal discretion.
-- Minimal diff: Small, fast, and safe (accumulate small PRs).
+- Prevent misoperations, history destruction and secret exposure.
+- Keep the actor, content and time of operations traceable.
+- Define reproducible work procedures.
+- Do not change the process through exceptions or verbal discretion outside this policy.
+- Limit changes to the required scope.
 
 ---
 
@@ -154,13 +154,13 @@
 - Submit as small PRs (specific file count / diff line count thresholds according to project definition).
 - Clearly state purpose / background / changes / impact / test steps in PR body, and link to Issue.
 - Do not include secrets or artifacts in PRs.
-- **CI is one workflow run.** Merge the source PR; `ci.yml` checks the source and dependencies and builds both OS artifacts in that run. Required tools, checks and builds must all pass before artifacts are uploaded. Sign and inspect the artifacts, then merge one PR containing all inspection results. The record PR starts no CI. Windows signing resumes the same run for packaging.
+- **CI is one workflow run.** After the source PR is merged, the developer uses that run to check the source and dependencies and build both OS artifacts. Required tools, checks and builds must all pass before artifacts are uploaded. Sign and inspect the artifacts, then merge one PR containing all inspection results. The record PR starts no CI. Windows signing resumes the same run for packaging.
 - A branch name starts with the version its work will ship in: `v<version>`, or `v<version>-<keyword>` with the keyword naming the work. Lower case, digits, dots and hyphens only. No branch without a version. No prefix: a word such as `release` states a status, and a status does not belong in a name. Type is carried by the label, not by the branch name.
 
 ### Recommended (SHOULD)
 
 - Feature branches are short-lived (delete after merge).
-- Track the base by merging it into your branch, or by re-branching from `origin/main` (do not use GitHub's Update branch). Rebase is not used: incorporation is Squash Merge, which flattens the branch anyway, and rewriting a branch already pushed would require a force push.
+- Track the base by merging it into your branch, or by re-branching from `origin/main` (do not use GitHub's Update branch). Do not use rebase.
 - Changes to this policy only via PR to this file (verbal exceptions prohibited).
 
 ### Commit / Push / PR (different purposes, different timing)
@@ -170,8 +170,8 @@
 - **PR**: raised only when the assigned mission is complete and self-verified to a no-rework level — not per file, not rushed.
 - Push and PR serve different purposes and are not performed at the same time.
 - **A version's work stays on its versioned branch.** The source PR is merged before the release build; the inspection-record PR is raised once every inspection result is ready. These are the two PRs in §5-4.
-- **Never press for a merge by claiming the work cannot proceed without one.** Neither this policy nor the shipping inspection says so. A documentation correction rides in the next version's PR.
-- **Do not raise a follow-up PR.** A PR that exists only to fix the previous one would not exist had the previous one been verified first — verify the change locally before handing it over.
+- **Never press for a merge by claiming the work cannot proceed without one.** A documentation correction rides in the next version's PR.
+- **Do not raise a follow-up PR.** Verify the change locally before handing it over.
 
 ### SLA (Response Time)
 
@@ -179,7 +179,7 @@
 
 ### Prohibited (NG)
 
-- Raising pull requests in excess. **The count of pull requests and CI runs is a cost, not an achievement.**
+- Raising pull requests in excess.
 - Direct push / deletion / protection removal on main.
 - Force push, in any spelling and on any branch — `-f`, `--force`, `--force-with-lease`, `--mirror`, a `+refspec`, or the equivalent through any API.
 - Zip distribution / starting work from Zip (missing history).
@@ -243,53 +243,50 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 
 ---
 
-### 5-4. Release process (the order of shipping)
+### 5-4. Release process
 
-**What "publication" means.** A release is **published** when the shipped artifact is stored in `dist/<version>/` and is available on the releases page, <https://github.com/Kozo2000/XOKSA/releases>. Both conditions together are the definition. **Publication is the last step of a release, and the release is complete at that moment.** Everything a release needs — the source, the build, the signature, every inspection including the external scans, the SBOM and the shipping record — is merged before it, The source and inspection record are merged through the two PRs in the table below. CI is one workflow run containing the checks and builds for macOS and Windows.
+**Publication.** A release is published when the shipped artifact is stored in `dist/<version>/` and is available at <https://github.com/Kozo2000/XOKSA/releases>. Publication is the final release step.
 
-**The order, and it is strict.**
+**CI execution.** The developer runs CI once to check and build the program when its source code or dependency libraries change. If neither changes, the developer does not rerun CI or rebuild the program.
 
-| Step | Work | CI |
-| :--- | :--- | :--- |
-| 1 | Merge the source change through a PR. | No |
-| 2 | Run the required checks and build both OS artifacts from that merged source within CI. | Start the run |
-| 3 | Sign locally; on macOS notarize and staple as well. On Windows, sign the three executables, resume the waiting run to package the MSI without compiling, then sign the MSI locally. | Resume the same run for Windows packaging |
-| 4 | Inspect the signed artifact and obtain every result in [the shipping inspection](../dev-prog/security-assessment.md) §C.1, including the external scans. Write the record only after all results are available. | No |
-| 5 | Merge the §C.4 inspection record through one PR. | No |
-| 6 | Tag the commit containing the code and store the artifact in `dist/<version>/`. | No |
-| 7 | Publish by attaching the artifact to the release. The release is complete here. | No |
+**Process.** The developer confirms completion of each step before proceeding to the next step. Source and inspection-record changes are merged before publication.
 
-**Two PRs: source at step 1 and inspection record at step 5. CI is one workflow run.** `ci.yml` is the only entry point. In that run, `scripts/check.sh` checks every workspace, including the settings app, with fmt, clippy, tests where executable, audit, deny and unused-dependency checks, then produces the OS artifacts. A missing tool or failed check stops artifact upload. Local checks do not replace CI. Windows signing and packaging continue in the same run. The scheduled advisory scan remains separate from release work.
+| Step | Responsible role | Required work | Completion condition |
+| :--- | :--- | :--- | :--- |
+| 1. Source review | Maintainer | Review and merge the source PR. | Review and required local checks pass; the source is committed and merged. |
+| 2. Checks and build | Developer | In one CI run, check the merged source and build the macOS and Windows artifacts. | Every required tool, check and build succeeds; artifact hashes and the source commit are recorded. |
+| 3. Signing | Maintainer | Sign the artifacts. On macOS, notarize and staple. On Windows, sign the three executables, resume the same run to package without compilation, then sign the MSI. | All signatures verify; macOS notarization and stapling succeed; packaged executable payloads match the signed files. |
+| 4. Shipping inspection | Developer | Inspect the signed artifacts under [the shipping inspection](../dev-prog/security-assessment.md) §C.1, including external scans, and prepare the SBOM. | All required results are available and bound to the artifact hashes. |
+| 5. Inspection record | Maintainer | Review and merge one PR containing the §C.4 inspection record and SBOM. | The record is complete and merged. Do not run CI for this step. |
+| 6. Artifact retention | Developer | Tag the commit containing the code and retain the artifact in `dist/<version>/`. | The artifact matches the inspected hashes; existing published tags remain unchanged. |
+| 7. Publication | Maintainer | Attach the inspected artifact to the release. | The published artifact matches the inspected hashes and is available for download. |
 
-**Automatic start conditions.** A push to `main` that changes a path listed in `ci.yml` under `push.paths` starts CI once. This includes source, dependency and CI-definition changes. PR creation, work-branch pushes and documentation/SBOM-only changes do not start CI. The OS files are called from `ci.yml` and have no independent trigger. Manual dispatch, when explicitly requested, starts `ci.yml`.
+**Checks and build requirements.**
 
-**Main protection.** Do not register `Format / Lint / Test`, `cargo audit`, `cargo deny`, or `cargo machete` as required pre-merge status checks: they no longer run automatically on PRs. The maintainer verifies required local results before merging. Keep the PR requirement, stale-review dismissal, and the force-push/deletion protections. Do not bypass protection to merge.
+- The developer builds shipping artifacts in CI from committed source in a clean working tree and fixed dependencies. Do not ship developer-machine builds.
+- In the same run, check every workspace, including the settings app, with fmt, clippy, executable tests, audit, deny and unused-dependency checks. A missing tool or failed check or build stops artifact upload and publication. Local checks do not replace CI.
+- Build the frontend, engine, settings app and desktop app. Build both sidecars before staging them and verify that their reported versions match the release version.
+- Do not ship artifacts containing identifying build paths.
+- Keep the scheduled advisory scan independent of release work.
 
-**Release build recipe — stated once here, so a §C.4 record names its commit, host and hashes instead of restating the steps.** Restating them is how a step was lost: v2.9.2's record said "`cargo build --release` in `xoksa-setup` staged as the second sidecar", and from v2.9.3 through v2.9.8 five records shortened that to "`xoksa-setup` staged as the second sidecar" — after which a v2.9.9 build staged a 2.9.8 settings binary, because nothing in the written recipe said to build it.
+**Signing and approval.**
 
-1. `cd webui-leptos && trunk build --release --locked` — the WASM frontend the engine embeds.
-2. `cargo build --release --locked --bin xoksa` — the engine.
-3. `cd xoksa-setup && cargo build --release --locked` — the settings app. **Building it is part of the recipe, not only staging it:** it is a separate workspace that a root-level build never touches, and it ships inside the installer as the second sidecar.
-4. `scripts/bundle-engine.sh` — stages **both** binaries as Tauri sidecars (`bundle.externalBin`). It resolves and checks both before copying either, and refuses to stage a binary that does not report the version in `Cargo.toml`, so a forgotten rebuild fails the bundle instead of shipping.
-5. `cd xoksa-desktop && cargo tauri build -- --locked` — the installer (with `APPLE_SIGNING_IDENTITY` set on macOS).
+- Do not store signing keys in CI.
+- The repository owner's signing approval and its approval record are required before Windows packaging. Permit the owner to approve a run they started. Missing approval configuration does not count as approval.
+- Do not keep a runner polling while approval is pending. Resume packaging within the same CI run; do not start a separate run or recompile.
+- Sign the three executables extracted from the installer. Do not sign the standalone desktop executable in their place. Verify signatures and identity with the build payload before packaging, and verify that packaging leaves the signed executables unchanged.
 
-**From v2.9.9 the release build runs on CI, not on a developer machine.** `.github/workflows/release-windows.yml` performs steps 1–5 above on a `windows-latest` runner and, before uploading, runs `scripts/check-no-host-paths.sh` over every artifact. The reason is §C.4's v2.9.9 record: rustc bakes each crate's source path into the binary for its panic messages, so a developer-machine build ships the builder's account name, and neither `strip = true` nor `--remap-path-prefix` removes all of it. A local build is still fine for development; it is no longer what gets inspected or shipped.
+**Source, artifact and record.**
 
-**Windows signing within one CI run.** `release-windows.yml` compiles and takes the three executables from inside the unsigned MSI into `to-sign/`. The owner signs these locally with Certum SimplySign and uploads them to a draft release named `signing-windows-<run ID>`. Configure `windows-release-signing` with the repository owner as its required reviewer, and permit the owner to approve their own run. The packaging guard also requires an approval record from that GitHub account; a missing environment rule is not treated as approval. Configure the environment before using this workflow. While approval is pending no runner waits in a polling loop. Approval resumes `release-windows-package.yml` as a called workflow within the same run ID; it cannot be dispatched as a separate run. It verifies approval, the source/hash manifest, executable signatures and payload identity before packaging without compilation. The owner then signs the MSI locally. Do not sign the standalone `xoksa-desktop.exe`: Tauri stamps three bytes into its packed copy, breaking a signature made before the stamp. The workflow summary gives the run ID, artifact, source and draft tag. The repository stores no signing key in Actions.
+- The developer records the artifact's build commit, branch and hashes in §C.4. Write the record only after all required inspection results are available.
+- Before publication, the developer checks whether the program's source code or dependency libraries have changed since the artifact was built. If either changed, check and build the changed program in one CI run and inspect the new artifact through every stage in §C.1. If neither changed, publish the existing inspected artifact.
+- Preserve the source commits and release branches named in inspection records. Do not delete release branches, repoint published tags or rewrite history.
+- Use dated inspection facts in §C.4 headings. Keep mutable status and publication timestamps in the handover note. Do not require a publication date in §C.4 or create a PR solely to add that date. Preserve existing dated publication facts.
+- When migrating without history, retain the source repository as a private archive and preserve its referenced commits and release branches. The first inspection record after migration identifies the repository to which it applies.
 
-**Binding the inspection to its source.** A hash says *which file* was inspected; it does not say *which source produced it*. Two failures during the v2.6.8 release made the gap concrete: a release was published before its source was committed, so `gh release create --target main` tagged a commit that did not contain the code; and a dependency update merged mid-inspection, leaving the first build unreproducible from the merged source. Seven rules close it, and every record from v2.7.0 onward follows them.
+**Merge protection.** The maintainer verifies review and required local results before merging. Do not require pre-merge CI statuses when CI runs after the source merge. Preserve PR-only changes, stale-review dismissal, and force-push and deletion protections. Do not bypass protection.
 
-1. **Build from a committed, clean working tree.** An artifact built over uncommitted edits has no source to name.
-2. **Publish after the merge, never before.**
-3. **Tag the commit that actually contains the code.** Do not repoint a published tag or use a force push; §4 applies to tags as well as branches.
-4. **Name the source commit and its branch in the §C.4 record**, beside the artifact hashes.
-5. **An inspected artifact is bound to the single commit it was built from.** Name that commit in §C.4. Before publication compare `git diff --name-only <build commit> origin/main` with the paths listed under `push.paths` in `ci.yml`. If any listed path changed, rebuild automatically from the new merged source and repeat every stage in §C.1; the earlier artifact is not published. If no listed path changed, publish the inspected artifact. Documentation, inspection records, SBOM and `CHANGELOG.md` alone do not start a rebuild. Keep this decision and the `ci.yml` path list aligned.
-6. **Never delete a release branch.** Squash & Merge folds a branch's commits into one new commit on `main`, so the commit a record names survives **only on that branch** — measured at v2.9.8: `5065da8` (v2.9.7) and `e8b973d` (v2.9.8) are both unreachable from `main` and present only on `origin/release/v2.9.7` and `origin/release/v2.9.8`. Deleting the branch would leave the record pointing at nothing. `deleteBranchOnMerge` is therefore off for this repository.
-7. **A §C.4 heading states dated inspection facts, never mutable status.** Do not write "not yet shipped" in a heading. The current state and publication timestamp live in the handover note and are updated there after publication. Do not require a publication date to be added to §C.4 as a release-completion condition, and do not create a follow-up PR solely for that date. Existing dated publication facts remain valid.
-
-**Across a repository migration.** This project plans to publish a fresh repository built from `main`'s current tree **without carrying the history**. Every commit a §C.4 record names, and every `release/*` branch holding one, stays behind with that history — and so would any tag, since a tag travels with the commit it points at. The decision recorded here is that **the source repository is kept as a private archive rather than deleted**, so those commits stay reachable: a record written before the migration refers to the archive, not to the published repository. Rule 6 therefore keeps applying *to the archive* — the release branches must survive there — and the first §C.4 record written after the migration states which repository it is bound to, so no record is ambiguous about where its commit lives.
-
-**What is measured, and how, is quality control and lives in [the shipping inspection](../dev-prog/security-assessment.md)** — the inspection stages, the artifact's measured properties, the penetration matrix, the SBOM method and the per-release records. This section holds the process.
+**Inspection criteria.** Follow [the shipping inspection](../dev-prog/security-assessment.md) for inspection stages, measurement methods, SBOM preparation and release records.
 
 ## 6. Reading History and Dates (Basis for Judgment)
 
@@ -330,13 +327,13 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 
 > **言語同期:** 英語と日本語の記載はいずれも有効です。要件・制約・例外・コマンド挙動・運用ルールが片方の言語にだけ存在する場合でも、両方に適用されます。欠落している側は文書不備として更新対象です。
 
-## 1. 理念
+## 1. 基本規則
 
-- 安全性：誤操作・履歴破壊・秘密露出を仕組みで防ぐ
-- 透明性：誰が・いつ・何を変えたかが常に追跡できる
-- 再現性：人が変わっても同じ結果になる（属人化しない）
-- 単一路線：例外や口頭裁量で運用を揺らさない
-- 最小差分：小さく速く安全に（小さな PR を積む）
+- 誤操作、履歴破壊、秘密情報の露出を防止する。
+- 操作の実施者、内容、日時を追跡可能にする。
+- 再現可能な作業手順を定める。
+- 本規約にない例外や口頭の判断で工程を変更しない。
+- 変更を必要な範囲に限定する。
 
 ---
 
@@ -480,13 +477,13 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 - 小さな PR で提出する（具体的なファイル数・差分行数の閾値はプロジェクト定義に準じる）。
 - PR 本文に 目的／背景／変更点／影響／テスト手順 を明記し、Issue へ紐付け。
 - 秘密情報・生成物は PR に含めない。
-- **CI は1つの実行である。** ソースのPRをマージすると、`ci.yml` がその実行内でソースと依存を検査し、両OSの現物をビルドする。必須ツール・検査・ビルドがすべて揃って成功した場合だけ成果物を出す。署名・現物検査の後、検査記録のPRを1本マージする。記録のPRではCIを起動しない。Windowsの署名後の梱包も同じ実行を再開する。
+- **CI は1つの実行である。** 開発者は、ソースのPRをマージした後、その1回でソースと依存を検査し、両OSの現物をビルドする。必須ツール・検査・ビルドがすべて揃って成功した場合だけ成果物を出す。署名・現物検査の後、検査記録のPRを1本マージする。記録のPRではCIを起動しない。Windowsの署名後の梱包も同じ実行を再開する。
 - ブランチ名は、その作業を載せる版数から始める（`v<版数>` または `v<版数>-<キーワード>`。キーワードは作業内容）。小文字・数字・ドット・ハイフンのみ。版数の無いブランチは作らない。接頭辞は付けない——`release` のような語は状態を表すものであり、状態を名前に固定しない。種別はラベルで示す。
 
 ### 推奨（SHOULD）
 
 - feature ブランチは短命（マージ後は削除）。
-- ベースへの追随は、ベースを自ブランチに取り込むか、`origin/main` から切り直して行う（GitHub の Update branch は使用しない）。rebase は用いない。取り込みは Squash Merge で履歴が潰れるため綺麗にする意味がなく、push 済みブランチの書き換えには force push が要るためである。
+- ベースへの追随は、ベースを自ブランチに取り込むか、`origin/main` から切り直して行う（GitHub の Update branch は使用しない）。rebase は用いない。
 - 本ポリシーの変更は本ファイルへの PR のみ（口頭例外は禁止）。
 
 ### コミット／プッシュ／PR（目的が違うので、タイミングも分ける）
@@ -496,8 +493,8 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 - **PR**：与えられたミッションが完了し、手戻りが無いと自己確認できたレベルで初めて出す。ファイル単位・拙速に出さない。
 - プッシュと PR は目的が異なり、同じタイミングで行わない。
 - **版の作業は版数を付けたブランチに置く。** ソースの PR は出荷ビルドより前にマージし、検査記録の PR は全検査結果が揃ってから 1 本出す。§5-4 の PR 2 本はこの 2 つを指す。
-- **「PR を出さないと先に進めない」と言って急かさない。** 本ポリシーにも出荷検査手順にもそのような条項は無い。文書の修正は、次の版の PR に同梱すれば足りる。
-- **後追いの PR を作らない。** 直前の PR の不備を直すだけの PR は、検証してから出していれば存在しない。ローカルで検証してから渡す。
+- **「PR を出さないと先に進めない」と言って急かさない。** 文書の修正は、次の版の PR に同梱すれば足りる。
+- **後追いの PR を作らない。** ローカルで検証してから渡す。
 
 ### SLA（対応時間）
 
@@ -505,7 +502,7 @@ Definition of Done: Squash & Merge complete / Issue closed / related documentati
 
 ### 禁止（NG）
 
-- PR の乱発。**PR と CI の本数は成果ではなくコストである。**
+- PR の乱発。
 - main 直 push／削除／保護解除。
 - force push（綴りを問わず、ブランチを問わず）。`-f`・`--force`・`--force-with-lease`・`--mirror`・`+refspec`、および任意の API による同等の操作。
 - Zip 配布・Zip から作業開始（履歴欠落）。
@@ -569,53 +566,50 @@ Definition of Done：Squash & Merge 済み／Issue クローズ／関連ドキ�
 
 ---
 
-### 5-4. リリース工程（出荷の順序）
+### 5-4. リリース工程
 
-**「公開」とは何か。** リリースが**公開された**とは、出荷する現物が `dist/<版数>/` に保管され、リリースページ <https://github.com/Kozo2000/XOKSA/releases> で入手できる状態になったことをいう。この 2 つが揃った状態を公開と定義する。**公開はリリースの最終工程であり、この時点でリリースは完了する。** リリースに必要なもの——ソース・ビルド・署名・外部スキャンを含むすべての検査・SBOM・出荷検査の記録——は、すべて公開より前にマージする。ソースと検査記録は、下表の PR 2 本でマージする。CIは1つの実行で、macOSとWindowsの検査とビルドを行う。
+**公開の定義。** 出荷する現物を `dist/<版数>/` に保管し、<https://github.com/Kozo2000/XOKSA/releases> で入手できる状態を公開とする。公開をリリースの最終工程とする。
 
-**順序。厳守する。**
+**CIの実行条件。** 開発者は、プログラムのソースコードまたは依存ライブラリを変更したとき、CIを1回実行して検査とビルドを行う。ソースコードと依存ライブラリを変更していなければ、CIやビルドをやり直さない。
 
-| 手順 | 内容 | CI |
-| :--- | :--- | :--- |
-| 1 | ソースの変更を PR でマージする。 | ✕ |
-| 2 | そのマージ済みソースを、CIの同じ実行内で検査し、両OSの現物をビルドする。 | 実行を開始 |
-| 3 | 手元で署名する。macOS は公証と staple も行う。Windows は実行ファイル 3 本に署名し、待機中の実行を再開して再コンパイルせずに MSI を梱包し、その MSI に手元で署名する。 | Windowsの梱包は同じ実行を再開 |
-| 4 | 署名済みの現物を検査し、[出荷検査](../dev-prog/security-assessment.md) §C.1 の全段階の測定結果を得る。外部スキャンの結果を含む。記録は、全段階の結果が揃ってから書く。 | ✕ |
-| 5 | §C.4 の検査記録を PR 1 本でマージする。 | ✕ |
-| 6 | 実体を含むコミットにタグを打ち、現物を `dist/<版数>/` に保管する。 | ✕ |
-| 7 | 公開する——リリースに現物を添付する。この時点でリリースは完了する。 | ✕ |
+**工程。** 開発者は各工程の完了を確認してから次の工程へ進む。ソースと検査記録の変更は、公開前にマージする。
 
-**PRは手順1のソースと手順5の検査記録の2本。CIは1つの実行である。** 起動入口は `ci.yml` だけとする。その実行内で `scripts/check.sh` が設定アプリを含む全workspaceにfmt・clippy・実行可能なtest・audit・deny・未使用依存の検査を行い、両OSの現物をビルドする。必須ツールがない場合や検査に失敗した場合は成果物を出さない。ローカル検査でCIを代替しない。Windowsの署名待ちと梱包も同じ実行の中で続ける。定時の勧告スキャンは出荷作業とは独立して維持する。
+| 工程 | 担当者 | 実施内容 | 完了条件 |
+| :--- | :--- | :--- | :--- |
+| 1. ソースの審査 | 管理者 | ソースのPRをレビューしてマージする。 | レビューと必須のローカル検査が合格し、ソースがコミット・マージされている。 |
+| 2. 検査とビルド | 開発者 | CIの1回の実行で、マージ済みソースを検査し、macOSとWindowsの現物をビルドする。 | 必須ツール・検査・ビルドがすべて成功し、現物のハッシュとソースコミットが記録されている。 |
+| 3. 署名 | 管理者 | 現物に署名する。macOSは公証とstapleを行う。Windowsは実行ファイル3本に署名し、同じ実行を再開して再コンパイルせずに梱包し、そのMSIに署名する。 | 署名が有効で、macOSの公証とstapleが完了し、梱包された実行ファイルが署名済み現物と一致している。 |
+| 4. 出荷検査 | 開発者 | [出荷検査](../dev-prog/security-assessment.md) §C.1 に従い、外部スキャンを含む署名済み現物の検査とSBOMの作成を行う。 | 必須の検査結果がすべて揃い、現物のハッシュと対応している。 |
+| 5. 検査記録 | 管理者 | §C.4の検査記録とSBOMを含むPRを1本レビューしてマージする。 | 記録が完成し、マージされている。この工程でCIは実行しない。 |
+| 6. 現物の保管 | 開発者 | 実体を含むコミットにタグを付け、現物を `dist/<版数>/` に保管する。 | 現物が検査済みハッシュと一致し、公開済みタグを変更していない。 |
+| 7. 公開 | 管理者 | 検査済み現物をリリースに添付する。 | 公開された現物が検査済みハッシュと一致し、ダウンロードできる。 |
 
-**自動起動の条件。** `main` へのpushで `ci.yml` の `push.paths` に列挙したパスが変更されたとき、CIを1回起動する。対象にはソース・依存・CI定義の変更を含む。PRの作成、作業ブランチへのpush、文書とSBOMだけの変更では起動しない。OS別のファイルは `ci.yml` から呼ぶ処理であり、独立した起動条件を持たない。明示的に依頼された手動起動も `ci.yml` から行う。
+**検査とビルドの要件。**
 
-**main の保護設定。** `Format / Lint / Test`・`cargo audit`・`cargo deny`・`cargo machete` は、PR で自動実行しなくなるため、マージ前の必須ステータスチェックには登録しない。管理者は必要なローカルの検証結果を確認してからマージする。PR 経由の変更、追加差分による承認失効、強制 push と削除を禁止する保護は維持する。保護を迂回してマージしない。
+- 開発者は、未コミットの変更がない作業ツリーで、コミット済みソースと固定済み依存からCIで出荷現物をビルドする。開発機でビルドした現物は出荷しない。
+- 同じ実行内で、設定アプリを含む全workspaceにfmt・clippy・実行可能なtest・audit・deny・未使用依存の検査を行う。必須ツールの欠落、検査またはビルドの失敗があれば、現物のアップロードと公開を停止する。ローカル検査でCIを代替しない。
+- フロントエンド、エンジン、設定アプリ、デスクトップアプリをビルドする。両sidecarをビルドしてから配置し、報告する版数とリリースの版数が一致することを確認する。
+- 個人を特定するビルドパスを含む現物は出荷しない。
+- 定時の勧告スキャンは出荷作業から独立して維持する。
 
-**リリースのビルド recipe — ここに 1 回だけ記す。§C.4 の記録は手順を書き直すのではなく、コミット・host・ハッシュを名乗る。** 書き直しは実際に手順を失わせた：v2.9.2 の記録は「`cargo build --release` in `xoksa-setup` を 2 本目の sidecar として配置」と書いていたが、v2.9.3 から v2.9.8 までの 5 本が「`xoksa-setup` を 2 本目の sidecar として配置」と短縮し、その結果 v2.9.9 のビルドが 2.9.8 の設定アプリを配置した——書かれた recipe のどこにも「ビルドする」と無かったためである。
+**署名と承認。**
 
-1. `cd webui-leptos && trunk build --release --locked` — エンジンが内蔵する WASM フロントエンド。
-2. `cargo build --release --locked --bin xoksa` — エンジン。
-3. `cd xoksa-setup && cargo build --release --locked` — 設定アプリ。**配置するだけでなくビルドすることが recipe の一部である**：ルートのビルドが触らない別 workspace であり、2 本目の sidecar としてインストーラに同梱される。
-4. `scripts/bundle-engine.sh` — **両方**を Tauri の sidecar として配置する（`bundle.externalBin`）。どちらかを複製する前に両方を解決・検査し、`Cargo.toml` の版数を報告しない現物は配置を拒否するので、ビルド忘れは出荷ではなくバンドルの失敗になる。
-5. `cd xoksa-desktop && cargo tauri build -- --locked` — インストーラ（macOS では `APPLE_SIGNING_IDENTITY` を設定）。
+- 署名キーをCIに保存しない。
+- Windowsの梱包前に、リポジトリのオーナー本人の署名承認と承認記録を必須とする。オーナー自身が開始した実行の承認を認める。承認設定の欠落を承認として扱わない。
+- 承認待ちの間、ランナーをポーリングのために動かし続けない。同じCI実行内で梱包を再開し、別の実行の開始や再コンパイルを行わない。
+- インストーラから取り出した実行ファイル3本を署名対象とし、単体ビルドのデスクトップ実行ファイルを代用しない。梱包前に署名とビルドされた現物との一致を検証し、梱包後も署名済み実行ファイルが変わっていないことを検証する。
 
-**v2.9.9 以降、リリースビルドは開発機ではなく CI で行う。** `.github/workflows/release-windows.yml` が上記 1〜5 を `windows-latest` ランナーで実行し、アップロード前に全現物へ `scripts/check-no-host-paths.sh` を掛ける。理由は §C.4 の v2.9.9 の記録にある——rustc は panic メッセージのために各クレートのソースパスをバイナリへ焼き込むため、開発機でのビルドはビルド者のアカウント名を出荷してしまい、`strip = true` でも `--remap-path-prefix` でも全部は消えない。開発目的のローカルビルドは従来どおりでよいが、検査と出荷の対象ではなくなった。
+**ソース・現物・記録の対応。**
 
-**Windows の署名を 1 回の CI 実行の中で受け渡す。** `release-windows.yml` がコンパイルし、未署名の MSI に入った実行ファイル 3 本を `to-sign/` に取り出す。オーナーは Certum SimplySign で手元で署名し、`signing-windows-<実行番号>` というタグの下書きリリースに置く。`windows-release-signing` 環境にはリポジトリのオーナーを必須レビュアーとして登録し、オーナー自身が起動した実行の承認も許可する。梱包のガードは、その GitHub アカウントによる承認記録も必須とし、環境の規則が未設定であることを承認として扱わない。ワークフローを使う前にこの環境を設定する。承認待ちの間、ランナーをポーリングのために動かし続けない。承認後は、同じ実行番号の中で呼び出した `release-windows-package.yml` が再開する。これを別の実行として手動起動することはできない。承認、ソースとハッシュの一覧、実行ファイルの署名、ペイロードの同一性を検証してから、コンパイルせずに梱包する。最後にオーナーが MSI に手元で署名する。単体の `xoksa-desktop.exe` には署名しない。Tauri が梱包するコピーに 3 バイトを刻むため、その前に付けた署名が壊れる。実行番号・生成物・ソース・下書きタグはワークフローの概要に表示する。署名キーは Actions に置かない。
+- 開発者は、現物のビルド元コミット・ブランチ・ハッシュを§C.4に記録する。記録は、必須の検査結果がすべて揃ってから書く。
+- 開発者は公開前に、現物のビルド後にプログラムのソースコードまたは依存ライブラリを変更していないか確認する。変更していれば、変更後のプログラムにCIを1回実行して検査とビルドを行い、新しい現物に§C.1の全段階の検査を行う。変更していなければ、既存の検査済み現物を公開する。
+- 検査記録に記載したソースコミットとreleaseブランチを保持する。releaseブランチの削除、公開済みタグの付け替え、履歴の書き換えを行わない。
+- §C.4の見出しには日付付きの検査事実を記載する。変動する状態と公開日時は引継ぎ書に記載する。§C.4への公開日の追記を必須とせず、その追記だけのPRを作成しない。既存の日付付き公開事実は保持する。
+- 履歴を引き継がずに移行する場合、移行元を非公開のアーカイブとして保持し、参照されるコミットとreleaseブランチを削除しない。移行後の最初の検査記録に、対象リポジトリを明記する。
 
-**検査をソースに束縛する。** ハッシュが示すのは*どのファイルを検査したか*であって、*どのソースから生まれたか*ではない。v2.6.8 のリリース作業で、この隙間が実際に 2 つの失敗として現れた。ソースをコミットする前にリリースを公開したため `gh release create --target main` が**コードを含まないコミット**にタグを打ったこと。そして検査の最中に依存の更新がマージされ、最初のビルドがマージ後のソースから再現できなくなったことである。以下の 7 項目でこれを塞ぐ。v2.7.0 以降の記録はすべてこれに従っている。
+**マージの保護。** 管理者は、レビューと必須のローカル検査結果を確認してからマージする。CIをソースのマージ後に実行する場合、マージ前のCIステータスを必須条件としない。PR経由の変更、追加差分による承認失効、強制pushと削除を禁止する保護を維持する。保護を迂回しない。
 
-1. **コミット済み・作業ツリー clean からビルドする。** 未コミットの編集の上で作った現物には、名乗るべきソースが無い。
-2. **公開はマージの後に行う。** 順序を逆にしない。
-3. **実体を含むコミットにタグを打つ。** 公開済みタグの付け替えや強制 push はしない。§4 の禁止はブランチだけでなくタグにも適用する。
-4. **§C.4 の記録に、ソースコミットとそのブランチを現物のハッシュと並べて明記する。**
-5. **検査した現物は、ビルドしたコミット 1 つに束縛される。** そのコミットを §C.4 に明記する。公開前に `git diff --name-only <ビルド元コミット> origin/main` の出力を、`ci.yml` の `push.paths` に列挙したソースのパスと照合する。該当するパスが 1 つでも変更されていれば、新しいマージ済みソースから自動でビルドし直し、§C.1 の全段階を測り直す。それまでの現物は公開しない。該当するパスが変更されていなければ、検査した現物を公開する。文書・検査記録・SBOM・`CHANGELOG.md` だけの変更ではビルドをやり直さない。この判定と `ci.yml` のパス一覧を一致させる。
-6. **release ブランチは削除しない。** Squash & Merge はブランチのコミットを畳んで `main` に新しい 1 個を作るため、記録が名指しするコミットは**そのブランチにしか残らない**——v2.9.8 時点の実測で、`5065da8`（v2.9.7）と `e8b973d`（v2.9.8）はいずれも `main` から到達不能で、`origin/release/v2.9.7` と `origin/release/v2.9.8` にのみ存在する。ブランチを消すと記録の参照先が消える。本リポジトリで `deleteBranchOnMerge` を無効にしているのはこのためである。
-7. **§C.4 の見出しには日付つきの検査事実を書き、可変の状態を書かない。** 見出しに「未出荷」と書かない。現在の状態と公開日時は引継ぎ書に置き、公開後にそこで更新する。§C.4 への公開日の追記をリリース完了の条件にせず、その日付だけのために後追い PR を作らない。既に記録した日付つきの公開事実は有効なまま残す。
-
-**リポジトリの引っ越しをまたぐ場合。** 本プロジェクトは、`main` の現在のツリーだけを新しいリポジトリとして公開し、**履歴は持ち込まない**計画である。§C.4 の記録が名指しするコミットも、それを保持する `release/*` ブランチも、履歴とともに元のリポジトリに残る（タグも同様である。タグは指し示すコミットと一緒にしか移動しない）。ここで記録する判断は、**引っ越し元を削除せず非公開のアーカイブとして残す**ことである。したがってそれらのコミットは引き続き到達可能であり、引っ越し前に書かれた記録が指すのは公開リポジトリではなく**このアーカイブ**である。規定 6 はアーカイブに対して効き続ける——release ブランチはそこで生き残らなければならない——また、引っ越し後に最初に書く §C.4 の記録には、どのリポジトリに束縛されているかを明記する。これにより、どの記録も自分のコミットの在り処が曖昧にならない。
-
-**何をどう測るかは品質管理であり、[出荷検査](../dev-prog/security-assessment.md) に置く**——検査の段階、現物の実測された性質、ペネトレーション行列、SBOM の作り方、リリースごとの記録。本節が持つのは工程である。
+**検査基準。** 検査の段階、測定方法、SBOMの作成方法、リリースの記録は[出荷検査](../dev-prog/security-assessment.md)に従う。
 
 ## 6. 履歴と日付の見方（判断の拠り所）
 

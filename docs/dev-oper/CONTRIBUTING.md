@@ -89,7 +89,7 @@ integration tests + 5 no-drift tests** (run `cargo test` to confirm).
 
 ## CI (GitHub Actions)
 
-`ci.yml` is the only CI entry point. After source, dependency or CI-definition changes reach `main`, it starts one run containing the checks and builds for macOS and Windows. Documentation/SBOM-only changes, work-branch pushes and PR activity do not start it. Windows signing and packaging continue in the same run after owner approval. The order and protection settings are in [the operations policy](github-operations-policy.md) §5-4.
+The developer runs CI once to check and build the program for macOS and Windows when the program’s source code or dependency libraries change. If neither changes, the developer does not rerun CI or rebuild the program. Windows signing and packaging continue in the same run after owner approval. The order and protection settings are in [the operations policy](github-operations-policy.md) §5-4.
 
 `scripts/check.sh` runs in the OS jobs before artifact upload. It requires `cargo-audit`, `cargo-deny` and `cargo-machete`; a missing tool or failed check fails the job.
 
@@ -127,8 +127,6 @@ Version tags inside a name keep their dotted form (e.g. a hypothetical `report-v
 - **GitHub-special files** rendered by convention: `README.md`, `LICENSE`, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md` (uppercase is the recognized form — GitHub surfaces `SECURITY.md` in the Security tab).
 - **Tooling-fixed files**: `Cargo.toml`, `Cargo.lock` (cargo requires the exact name), `.gitignore`, `.gitattributes`, workflow YAML under `.github/`.
 - **Rust source stays `snake_case`** — that is the language convention, not a deviation from this rule.
-
-**Rationale.** `kebab-case` is the de-facto standard for web-served and Markdown content (URLs are case-sensitive on Linux hosts; lowercase avoids "works on my Windows box, 404 in CI/prod" surprises), and the CSS/asset pipeline already used it. `snake_case` for `.rs` matches the Rust ecosystem so tooling and readers see no surprises. A single style per kind removes the "which case was that file again?" tax and the amateur look of a mixed tree.
 
 **Applying to new files.** Match the table above. When in doubt for a non-code asset, choose `kebab-case`. Do not introduce a new casing style for a one-off — extend this table by agreement instead.
 
@@ -224,7 +222,7 @@ cargo test <名前>   # 名前に部分一致するテストのみ実行（例: 
 
 ## CI（GitHub Actions）
 
-CIの起動入口は `ci.yml` だけとする。ソース・依存・CI定義の変更が `main` に入ると、macOSとWindowsの検査とビルドを含む実行を1つ起動する。文書・SBOMだけの変更、作業ブランチへのpush、PRの操作では起動しない。Windowsの署名待ちと梱包も、オーナーの承認後に同じ実行で続ける。工程と保護設定は[運用ポリシー](github-operations-policy.md) §5-4 に記載する。
+開発者は、プログラムのソースコードまたは依存ライブラリを変更したとき、CIを1回実行してmacOSとWindowsの検査とビルドを行う。ソースコードと依存ライブラリを変更していなければ、CIやビルドをやり直さない。Windowsの署名待ちと梱包も、オーナーの承認後に同じ実行で続ける。工程と保護設定は[運用ポリシー](github-operations-policy.md) §5-4 に記載する。
 
 OS別ジョブ内で、成果物を出す前に `scripts/check.sh` を実行する。`cargo-audit`・`cargo-deny`・`cargo-machete` は必須で、不足や検査失敗があればジョブを失敗にする。
 
@@ -262,8 +260,6 @@ bash scripts/check.sh
 - **GitHub が特別扱いするファイル**：`README.md`・`LICENSE`・`CHANGELOG.md`・`CONTRIBUTING.md`・`SECURITY.md`（大文字が認識される形式。GitHub は `SECURITY.md` を Security タブに表示する）。
 - **ツール固定のファイル**：`Cargo.toml`・`Cargo.lock`（cargo が正確な名前を要求）・`.gitignore`・`.gitattributes`・`.github/` 配下のワークフロー YAML。
 - **Rust ソースは `snake_case` のまま** — 本規約からの逸脱ではなく、言語側の慣習。
-
-**理由。** `kebab-case` は Web 配信・Markdown コンテンツの事実上の標準であり（URL は Linux ホストで大文字小文字を区別する。小文字統一は「自分の Windows では動くが CI/本番で 404」を避ける）、CSS・アセットのパイプラインでも既に使っている。`.rs` の `snake_case` は Rust エコシステムに一致し、ツールにも読み手にも意外性がない。種別ごとに1スタイルへ統一することで「あのファイルはどの表記だったか」という無駄と、混在したツリーの素人臭さを取り除く。
 
 **新規ファイルへの適用。** 上の表に合わせる。コード以外の資産で迷ったら `kebab-case`。一度きりの都合で新しい表記を持ち込まない。必要なら合意のうえでこの表を拡張する。
 

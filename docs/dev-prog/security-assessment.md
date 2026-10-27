@@ -306,6 +306,44 @@ v2.7.4 is a shift-left audit-and-fix cycle: a line-by-line review of the source 
 
 **Binary-bound items pending (recorded at ship-time, per this C.4 convention):** per-artifact SHA-256, VirusTotal on the shipped hashes (deferred until code signing, as for v2.7.0), the OWASP ZAP passive scan, and the per-OS SBOM regeneration are measured at the tag/CI ship step against the frozen binary. This record is the source-level evidence at working-tree state and does not substitute for the on-artifact measurement.
 
+### v2.9.13 (macOS) — inspected 2026-10-26–27 on the signed CI-built artifacts — measured checks passed
+
+**Source and build.** GitHub Actions [run 40151260285](https://github.com/Kozo2000/XOKSA/actions/runs/40151260285), `Release build (macOS)`, built `main` commit `a22f27478e67774d475604e234f52dd0448eb1fa` for `aarch64-apple-darwin` with pinned Rust 1.98.1. Artifact `12581734722` was verified against archive SHA-256 `6528a8e2b85a94135c2d2296417a28c675893d3d78208954b413c85faf9bae4a`; the executables and WASM matched the CI manifest before signing. Application source files and dependency lockfiles are unchanged through `main` `98134b1377b0055c2bbb60fccecc2503bdf136d9`. The two app manifests only add `license = "MIT"` metadata. This record identifies the original CI-built artifact; it does not attribute it to a later run.
+
+**Signing and payload.** The three executables and app bundle were signed locally with Developer ID Application, team `463YK5WF6H`, hardened runtime and secure timestamps. App notarization `d8843325-64c0-49b1-b84b-469980815e32` and DMG notarization `730b423e-1c19-4c59-a06b-cdfd8eaba076` both returned **Accepted**. Both tickets were stapled and validated; Gatekeeper accepted the app, DMG and app mounted from the DMG. After removing signatures and normalizing only Mach-O `__LINKEDIT.vmsize`, all three executables were byte-identical to the CI originals: the field increased by 16,384 bytes for each. The signed files inside the mounted DMG matched the frozen hashes. The identifying-build-path gate passed on all three signed executables and the WASM.
+
+**Frozen artifacts and VirusTotal results** (reports checked 2026-10-27):
+
+| Artifact | SHA-256 (signed; WASM is the CI original) | Size | VirusTotal |
+| :--- | :--- | ---: | :--- |
+| `XOKSA-2.9.13-arm64.dmg` | `7077cdd0beeb3affcc8302a0e7a1c8fe2286aee2b59b49fa666dccc713f1ccdc` | 11,734,640 B | [0/60](https://www.virustotal.com/gui/file/7077cdd0beeb3affcc8302a0e7a1c8fe2286aee2b59b49fa666dccc713f1ccdc) |
+| `xoksa` | `d0866af5a3d4a09cf4bf5411203e0fa9b7c4d535b26689c4504358376d8e025d` | 12,032,256 B | [0/62](https://www.virustotal.com/gui/file/d0866af5a3d4a09cf4bf5411203e0fa9b7c4d535b26689c4504358376d8e025d) |
+| `xoksa-desktop` | `8f87fc797f1b2fa16b272cfc80346712759e489f6337953c2c6a8e3a4a1f5d80` | 6,362,528 B | [0/62](https://www.virustotal.com/gui/file/8f87fc797f1b2fa16b272cfc80346712759e489f6337953c2c6a8e3a4a1f5d80) |
+| `xoksa-setup` | `c9313ebca604074de8b1853fb2fd267fc5dbb1cdfa185fad3d0cccf9d8eafd16` | 5,930,928 B | [0/62](https://www.virustotal.com/gui/file/c9313ebca604074de8b1853fb2fd267fc5dbb1cdfa185fad3d0cccf9d8eafd16) |
+| `xoksa-webui-45191c4e90a6bfb6_bg.wasm` | `8fce0621c0525ba804395d7046253d662132c4e29af0b8d7e52debda494659b4` | 724,500 B | — |
+
+The DMG was uploaded for this check. Selecting each executable resolved directly to an existing report for the same SHA-256; those reports displayed “17 hours ago” as the analysis date. These are hash-matched existing results, not three newly requested analyses. All four reports state “No security vendors flagged this file as malicious”. The denominator excludes unsupported file types; each report also has one confirmed timeout. The signed executables are distributed inside the DMG, not as separate release assets.
+
+**Source checks and runtime.** All 16 local source gates passed; 491 tests passed and one existing manual Stooq failover test was ignored. On the frozen signed engine, **38 runtime probes passed**: initial HTTP/CLI/browser checks 22, follow-up backtest/SSE/private-mode/SRI checks 8, and non-loopback authentication checks 8. A fresh working directory without `webui-leptos/dist` ensured the embedded UI was tested; served WASM matched the frozen hash and the rendered browser UI displayed 2.9.13. The backtest returned nonempty results (`total_return_pct` present; no error note). CSV, CLI JSON and API analysis agreed on **all 24 compared fields**, including timestamps.
+
+**HTTP and resource controls.** Traversal probes returned 404; wrong method 405; wrong Content-Type 415; cross-origin mutations and SSE 403; oversized body and chat message 413. The private loopback server created no diagnostics directory; `--private` refused a non-loopback bind. From a Docker Linux VM to the signed engine bound to `0.0.0.0`, missing/wrong bearer tokens returned 401 and a correct token returned 200. Empty/wrong form tokens returned 401 without an auth cookie; a correct form token returned 303 with an HttpOnly, SameSite=Strict cookie, which authenticated a subsequent request. A valid bearer token did not bypass the cross-origin gate. Only the existing local serve token was used in memory; no API key was read or sent and no credential was created or changed. Two clients received distinct `xoksa_sid` values; this alone is not a full chat-history isolation test. Holding 256 HTTP handlers with incomplete request bodies caused extra requests to return **503**; releasing them restored **200**. Health still returned 200 in about **22 ms** during another analysis.
+
+**SCA and SBOM.** OSV Scanner 1.9.1 found no issues in the engine lockfile (338 packages) or paths lockfile (15). The WASM lockfile (188) reported four packages: `paste` and `proc-macro-error2` are unmaintained build macros; `event-listener`'s thread-crossing advisory is unreachable in this shipped WASM's unshared memory (`flags=0`, 18 minimum pages); [`xxhash-rust` GHSA-6g2r-675j-hx59](https://github.com/advisories/GHSA-6g2r-675j-hx59) affects the `xxh3` custom-secret API, but `cargo tree --target wasm32-unknown-unknown -e features -i xxhash-rust --locked --offline` enables `const_xxh64`, not `xxh3`. The crate gates the affected module on that disabled feature. Desktop/setup lockfiles include Linux-only `glib` (GHSA and RustSec aliases identify the same advisory), unmaintained build macro `proc-macro-error`, and five unmaintained `unic-*` libraries. `glib` and that macro are absent from the macOS runtime inventories; `unic-*` are present and their notices concern maintenance.
+
+Three macOS CycloneDX 1.5 inventories were generated with `cargo auditable` and syft, from neutral paths with file-metadata cataloguing disabled: engine **222**, desktop **203**, setup **214** library components. These are derived from throwaway builds of the same program source, locked dependencies and target; they are not metadata extracted from the clean CI executables. `cargo audit bin` passed for all three throwaways. No output was post-edited to remove paths. The existing 188-component WASM inventory is retained because its source and lockfile match. The shipped signed binaries stayed separate and unchanged.
+
+**OWASP ZAP 2.17.0 passive scan.** Image `ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6`; scanner in a Docker Linux VM, via `host.docker.internal`, to the frozen engine bound to loopback. **6 alert types: High 0, Medium 2, Low 1, Informational 3.** Authenticated requests were not proxied in this scan; authentication was tested separately above.
+
+| Finding | Instances | Measured assessment |
+| :--- | ---: | :--- |
+| Missing anti-CSRF token on `/login` (Medium) | 1 | Empty/wrong 256-bit access tokens fail `/auth` with 401 and no auth cookie; only the valid token succeeds. The access token itself gates the form. |
+| Missing SRI on the WASM URL (Medium) | 1 | The response is `application/wasm`, hash-matched to CI. The reported “link” is bytes inside the WASM. Actual served HTML has SHA-384 integrity on all three JS/CSS/WASM references. |
+| Unix timestamps in analysis response (Low) | 3 | Public market and analysis timestamps, Class C. |
+| Session management / modern web app (Info) | 1 each | Expected session cookie and WASM application structure. |
+| Suspicious comments in generated JS (Info) | 2 | wasm-bindgen generated comments, preserved in the raw alert evidence. |
+
+**Evidence and limits.** Raw command logs, scanner JSON, result-page snapshots and screenshots are retained locally under `logs/release-v2.9.13-macos/`; frozen hashes bind the measurements to these files. This round did not run paid-provider prompt-injection trials, live Stooq failover, native GUI install/uninstall automation, or a request from a public source IP. The source/unit checks and the measured runtime probes above are stated separately; this is not a claim that every A1–K3 scenario was rerun on the artifact.
+
 ### v2.9.13 (Windows) — inspected 2026-10-24 on the CI-built artifacts, signed — PASS (static, SOT, runtime, penetration, payload identity, signing, SCA, SBOM, ZAP, VirusTotal)
 
 **Why this release exists.** After 2.9.12 shipped, advisories were published against crates in its dependency tree: RUSTSEC-2026-0382 against `rustls-webpki` 0.103.15 (2026-10-20, CVE-2026-111943: certificate paths through distrusted emSign intermediates may be accepted), RUSTSEC-2026-0383 against `webpki-root-certs` 1.0.9 (2026-10-19, same CVE: a bundled root allows those paths), RUSTSEC-2026-0386 against `tokio` (2026-10-13, unsound: `AsyncFd` constructors violate I/O safety; the API is Unix-only), and `clipboard-win` 5.4.1 was yanked. RustSec publishes no CVSS score for any of them. They were found when `scripts/check.sh` failed on `cargo audit` and `cargo deny`. All four are replaced with fixed versions without waiting to assess whether XOKSA reaches the affected code. `webpki-root-certs` is not in the Windows runtime graph (`cargo tree --target x86_64-pc-windows-msvc` prints nothing, and neither the 2.9.12 nor the 2.9.13 engine inventory lists it), so RUSTSEC-2026-0383 did not reach the shipped Windows artifacts; the lockfile is updated all the same.
@@ -1386,6 +1424,44 @@ v2.7.4 はシフトレフトの監査・修正サイクル：design-philosophy �
 **§4.2 の重複——解消（全て挙動保存）。** 単一ソース化：#1 スコア調整行（10コピー→1 `adjusted_score_line`）／#3 `send_cloud_prompt`（3送信→1）／#5 `key_present_in_env_file`→`read_key_from_env_file`／#6 スコア不明ラベルを「情報なし/unavailable」に統一（utils を単一源）／#7 `colored_price_diff`／#8 `cloud_provider_rows`／#10 `send_chat_turn_dispatch`／#2 `group_thousands`（f64→整数変換は各呼出側が保持・表示専用）／#4 `parse_env_line`（＋`live_ollama_instances` は `load_env_map` を利用。除外条件は各自保持でクラスA値を材料化しない）／#9 `sanitize_symbol_result`（エラーを返し4つの報告サイトの文言を保持）／#11 演算子記号を `rule_operator_catalog` から／#12 `fundamental_value_lines`（revenue〜次期FYの値行。表示/LLMのヘッダは別ビューで各関数に残置）／#13 `cross_status`/`CrossLabels`／#14 `deviation_line`／#15 `symbol_of` 再利用／#16 `ChatTokenUsage::accumulate`／#17 `on_off`／#18 context.rs の前足比を `displayed_price_diff` 経由に。**真の重複でないと確認し据え置き：** #19——`fmt_num` と `fmt_currency_auto` は出力が異なる（記号なし4桁 vs 記号+カンマ2桁）。共有は `100.0` 閾値のみで、これは §1 の出力整合ガードも使うため、統合すると表示精度とセキュリティ閾値を誤って結合してしまう。別概念の下位部分も据え置き（非重複）：#11 の `parse_alert_condition` の演算子解析順・eval のセマンティクス、#18 の生バー(indicators.rs)・リロード差分(chat)の前足比計算。
 
 **現物依存項目は保留（出荷時に本節へ記録・C.4 の慣例通り）：** 現物別 SHA-256・出荷ハッシュへの VirusTotal（v2.7.0 同様、コード署名まで延期）・OWASP ZAP パッシブスキャン・OS別 SBOM 再生成は、tag→CI が凍結した現物に対して実測する。本記録は作業ツリー時点のソース級証跡であり、現物実測の代替ではない。
+
+### v2.9.13（macOS）— CI ビルドの署名済み現物を 2026-10-26〜27 検査 — 実測項目は合格
+
+**ソースとビルド。** GitHub Actionsの [run 40151260285](https://github.com/Kozo2000/XOKSA/actions/runs/40151260285)、`Release build (macOS)`で、`main`の `a22f27478e67774d475604e234f52dd0448eb1fa` を固定したRust 1.98.1で `aarch64-apple-darwin` 向けにビルドした。artifact `12581734722` のZIPをSHA-256 `6528a8e2b85a94135c2d2296417a28c675893d3d78208954b413c85faf9bae4a` と照合し、署名前の実行ファイルとWASMがCIマニフェストと一致することを確認した。`main`の `98134b1377b0055c2bbb60fccecc2503bdf136d9` まで、アプリのソースと依存ロックファイルに変更はない。アプリ2本のmanifestの変更は `license = "MIT"` というメタデータの追加だけである。本記録の対象は元のCIが作った現物であり、後の実行が作ったものとは扱わない。
+
+**署名とペイロード。** 実行ファイル3本とアプリを、Developer ID Application、チーム `463YK5WF6H` で、hardened runtime・セキュアタイムスタンプ付きでローカル署名した。アプリ公証 `d8843325-64c0-49b1-b84b-469980815e32` とDMG公証 `730b423e-1c19-4c59-a06b-cdfd8eaba076` は双方 **Accepted**。チケットをstaple・検証し、アプリ・DMG・マウントしたDMG内のアプリもGatekeeperが受け入れた。署名を除去し、Mach-Oの `__LINKEDIT.vmsize` だけを正規化すると、実行ファイル3本はすべてCI原本とバイト単位で一致した。このフィールドは3本とも16,384 B増えている。DMG内の署名済み3本も凍結ハッシュと一致。署名後3本とWASMで個人のビルドパスの検査に合格した。
+
+**凍結した現物とVirusTotalの結果**（レポート確認日：2026-10-27）：
+
+| 現物 | SHA-256（署名後。WASM は CI 原本） | サイズ | VirusTotal |
+| :--- | :--- | ---: | :--- |
+| `XOKSA-2.9.13-arm64.dmg` | `7077cdd0beeb3affcc8302a0e7a1c8fe2286aee2b59b49fa666dccc713f1ccdc` | 11,734,640 B | [0/60](https://www.virustotal.com/gui/file/7077cdd0beeb3affcc8302a0e7a1c8fe2286aee2b59b49fa666dccc713f1ccdc) |
+| `xoksa` | `d0866af5a3d4a09cf4bf5411203e0fa9b7c4d535b26689c4504358376d8e025d` | 12,032,256 B | [0/62](https://www.virustotal.com/gui/file/d0866af5a3d4a09cf4bf5411203e0fa9b7c4d535b26689c4504358376d8e025d) |
+| `xoksa-desktop` | `8f87fc797f1b2fa16b272cfc80346712759e489f6337953c2c6a8e3a4a1f5d80` | 6,362,528 B | [0/62](https://www.virustotal.com/gui/file/8f87fc797f1b2fa16b272cfc80346712759e489f6337953c2c6a8e3a4a1f5d80) |
+| `xoksa-setup` | `c9313ebca604074de8b1853fb2fd267fc5dbb1cdfa185fad3d0cccf9d8eafd16` | 5,930,928 B | [0/62](https://www.virustotal.com/gui/file/c9313ebca604074de8b1853fb2fd267fc5dbb1cdfa185fad3d0cccf9d8eafd16) |
+| `xoksa-webui-45191c4e90a6bfb6_bg.wasm` | `8fce0621c0525ba804395d7046253d662132c4e29af0b8d7e52debda494659b4` | 724,500 B | — |
+
+DMGは今回アップロードした。実行ファイル3本は、選択後に同じSHA-256の既存レポートが直接表示され、解析日時は「17 hours ago」だった。これは同一ハッシュの既存結果との照合であり、3本を新たに再解析したという意味ではない。4件とも「No security vendors flagged this file as malicious」。分母に非対応形式のエンジンは含まれず、各レポートには別途タイムアウトが1件ある。署名済み実行ファイルはDMG内に収め、単体ではリリースに添付しない。
+
+**ソース検査とランタイム。** ローカルのソース検査16ゲートの合格を確認した。試験491件が合格し、既存の手動Stooqフェイルオーバー試験1件はignoredである。凍結した署名済みエンジンで **38項目に合格**：最初のHTTP・CLI・ブラウザ検査22、バックテスト・SSE・privateモード・SRIの追加検査8、非ループバックの認証検査8。`webui-leptos/dist` のない新規ディレクトリから起動して埋め込みUIを検査し、配信WASMのハッシュ一致と、ブラウザでの2.9.13の描画を確認した。バックテストは空でない結果を返した（`total_return_pct` あり、エラーのnoteなし）。CSV・CLI JSON・APIは、時刻を含む**比較対象24項目すべて一致**した。
+
+**HTTPとリソース制御。** パストラバーサル404、誤ったメソッド405、誤Content-Type 415、クロスオリジンの変更とSSE 403、過大body・チャット本文413。privateなループバックサーバーは診断ログのディレクトリを作らず、`--private` は非ループバックへのbindを拒否した。DockerのLinux VMから、`0.0.0.0` にbindした署名済みエンジンへ接続すると、bearerトークンなし・誤りは401、正しいトークンは200。フォームの空・誤トークンは認証cookieなしで401、正しいトークンだけが303とHttpOnly・SameSite=Strictのcookieを返し、そのcookieで後続の認証に成功した。正しいbearerでもクロスオリジン拒否は回避できなかった。既存のローカル接続用トークンだけをメモリ内で使い、APIキーの読み取り・送信や、認証情報の作成・変更は行っていない。2クライアントには別の `xoksa_sid` が発行されたが、これだけでチャット履歴の完全な分離を実測したとはしない。本文を未完了にしてHTTPハンドラ256件を滞留させると、超過分は **503**、解放後は **200** に復帰した。別の解析中もhealthは200・約 **22 ms** で応答した。
+
+**SCAとSBOM。** OSV Scanner 1.9.1は、エンジンのロックファイル338パッケージとpathsの15パッケージで問題なし。WASMの188パッケージでは4部品を検出した。`paste`・`proc-macro-error2` は保守終了のビルド用マクロ。`event-listener` のスレッド境界に関する勧告は、この出荷WASMの共有されないメモリ（`flags=0`、最小18ページ）では到達しない。[`xxhash-rust` GHSA-6g2r-675j-hx59](https://github.com/advisories/GHSA-6g2r-675j-hx59) の対象は `xxh3` のcustom-secret APIだが、`cargo tree --target wasm32-unknown-unknown -e features -i xxhash-rust --locked --offline` が示す有効な機能は `const_xxh64` で、`xxh3` は無効だった。対象モジュールはその機能でコンパイルが制御される。デスクトップと設定アプリのロックファイルにはLinux専用の `glib`（GHSAとRustSecは同一勧告の別名）、保守終了のビルド用マクロ `proc-macro-error`、保守終了の `unic-*` 5部品がある。`glib` とそのマクロはmacOS実行時インベントリに含まれず、`unic-*` は含まれるが通知内容は保守終了である。
+
+macOSのCycloneDX 1.5インベントリ3本を、`cargo auditable` とsyftで、中立パス・file-metadataカタログ無効で生成した。libraryはエンジン **222**、デスクトップ **203**、設定アプリ **214**。同じプログラムソース・固定依存・ターゲットで作った使い捨てビルドからの導出であり、監査情報を含まないCI実行ファイルからの抽出ではない。使い捨て3本への `cargo audit bin` は合格した。パスを除くための出力後編集はしていない。WASMはソースとロックファイルが同じため、既存の188コンポーネントのインベントリを維持した。出荷する署名済み現物は別に保持し、変更していない。
+
+**OWASP ZAP 2.17.0 パッシブスキャン。** イメージは `ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6`。DockerのLinux VMから `host.docker.internal` を経由し、ループバックにbindした凍結済みエンジンを走査した。**6種類：High 0、Medium 2、Low 1、Info 3**。認証付きリクエストはこのプロキシ走査に含めず、上記の別検査で確認した。
+
+| 指摘 | 件数 | 実測による評価 |
+| :--- | ---: | :--- |
+| `/login` のAnti-CSRFトークン欠如（Medium） | 1 | 256bitの接続トークンが空・誤りなら `/auth` は401で認証cookieを発行せず、正しいときだけ成功する。このトークン自体がフォームの認証を担う。 |
+| WASM URLのSRI欠如（Medium） | 1 | 応答はCI現物と同じハッシュの `application/wasm`。指摘された「link」はWASM内部のバイト列。実際のHTMLはJS・CSS・WASMの3参照すべてにSHA-384のintegrity属性を持つ。 |
+| 解析応答のUnixタイムスタンプ（Low） | 3 | 公開市場データと解析の時刻。クラスC。 |
+| セッション管理／モダンWebアプリ（Info） | 各1 | 意図したセッションcookieとWASMアプリ構造。 |
+| 生成JSの疑わしいコメント（Info） | 2 | wasm-bindgenの生成コメント。指摘の原文は走査証跡に保存。 |
+
+**証跡と範囲。** コマンドの原出力、スキャナJSON、結果画面のスナップショットと画像は、ローカルの `logs/release-v2.9.13-macos/` に保持する。凍結ハッシュで検査対象と結び付けている。今回は有料プロバイダへのプロンプト注入試験、実際のStooqフェイルオーバー、ネイティブGUIのインストール・アンインストール自動化、公開IPからの接続は実行していない。ソース・単体試験と上記の現物実測は区別し、A1〜K3の全シナリオを現物で再実行したとは記載しない。
 
 ### v2.9.13（Windows）— CI ビルド現物を 2026-10-24 検査・署名済み — 合格（静的／SOT／ランタイム／ペネトレ／ペイロード同一性／署名／SCA／SBOM／ZAP／VirusTotal）
 
