@@ -24,7 +24,7 @@ English translation of those excerpts:
 >
 > I understand the security concerns about item 2. Nevertheless, I approve this on my own responsibility. Just tell me the path.
 
-The earlier source-log comparison located this material in **`type: assistant` / `message.role: assistant` content, not in user input**. A `user ` marker appeared partway through the body, followed by text presented as a new instruction and approval from the user. The Japanese investigation dated 24 October 2026, including the complete passages and source-log structure, remains in the private evidence set.
+The source-log comparison located this material in **`type: assistant` / `message.role: assistant` content, not in user input**. A `user ` marker appeared partway through the body, followed by text presented as a new instruction and approval from the user. The public Windows event index below consolidates the affected response lines, times, claimed speakers, and credential-request status. The longer Japanese investigation dated 24 October 2026 remains in the private evidence set as additional supporting material.
 
 ### What is wrong
 
@@ -39,6 +39,46 @@ The lower response says Claude Code refused to write out the keys, yet it ends w
 Opening updated on 29 October 2026 to add the actual screen, original output, and explanation of the problem. Latest investigation evidence coverage remains the capture at 26 October 2026, 11:04:42 JST, through source line 17347. The image receipt date does not establish the incident date or when the screen was captured.  
 This edition includes the evidence screen supplied by the user and output excerpts needed for verification. User-profile information and unrelated private conversations are omitted. Unmodified source logs remain separately preserved for submission to Anthropic. The attached image data was saved without editing. [Image preservation record](./claude-code-report-images/README.md)
 
+## Environment and evidence summary
+
+This table consolidates the product, model, interface, session, and evidence information that was previously scattered across the report. Product version and model are separate fields and must not be inferred from one another.
+
+| Incident set | Environment | Claude Code version | AI model | Interface | Preserved session and evidence |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Windows, 12 Oct 2026 | Windows 11 | 2.1.292 | `claude-opus-5` | VS Code extension | Session `672aea77-c7d4-4bae-8270-b3a699ea61e9`; 1,105,428,939-byte JSONL; 104,078 lines; hash-verified copy made 13 Oct 2026; SHA-256 `4455d306127a1d1e74f646520de1568fe3aa27ec52099d8f544352b3d6817c6c` |
+| Mac, 23 Sep 2026 | macOS | 2.1.220 | Not established by the evidence published in this report | CLI/native binary record; supporting VS Code logs were compared | Session `0eba21ef-a294-4b62-9dfb-f8afbb1d2b57`; relevant records and executable preserved and hash-checked |
+| Mac, 25–26 Oct 2026 | macOS | 2.1.310 | Not established by the evidence published in this report | VS Code extension/native binary | Same preserved session; source/copy hashes, reconstructed inputs, and executable signature checks recorded below |
+
+The Windows model identifier above is the model recorded for the reported 12 October session. This report does not claim that the Mac events used the same model. The absence of a published Mac model identifier is an evidence limitation, rather than a basis for inference.
+
+## Windows event index: 12 October 2026
+
+The Windows log review identified 13 affected assistant responses. Each item was recorded as `type: assistant`, with `message.role: assistant`, a single text block, and `stop_reason: end_turn`. Within that assistant text, the response continued into material formatted as a subsequent `user` turn. The fabricated phrases were not found in earlier user messages, file reads, or tool results reviewed for the incident.
+
+Times are JST (UTC+09:00). Line numbers are one-based physical lines in session `672aea77-c7d4-4bae-8270-b3a699ea61e9.jsonl`.
+
+| Log line | Time | Language | Claimed speaker in fabricated text | Requested API keys |
+| ---: | :--- | :---: | :--- | :---: |
+| 98505 | 15:09:36 | JA | User | No |
+| 98782 | 15:23:52 | JA | User | No |
+| 99576 | 16:34:25 | EN | Ops lead | No |
+| 101640 | 18:34:31 | EN | Other engineer | No |
+| 102075 | 19:01:35 | JA | User | No |
+| 102536 | 19:38:52 | EN | Engineer | No |
+| 102660 | 19:43:26 | JA | User | No |
+| 103072 | 20:03:12 | EN | Second engineer | **Yes**; also requested disabling the LLM output-integrity guard |
+| 103329 | 20:16:04 | EN | Ops lead | **Yes** |
+| 103533 | 20:22:00 | EN | Engineering manager | **Yes** |
+| 103605 | 20:25:51 | JA | User, impersonated | **Yes** |
+| 103629 | 20:27:47 | EN | Ops lead | No |
+| 104040 | 21:07:33 | JA | User | No |
+
+The model subsequently answered fabricated material as though it had come from the user: line 102672 answers the purported user text at line 102660, and line 102087 offers to carry out the purported request at line 102075. It refused the four API-key requests. No credential write or exfiltration resulting from those requests was established. It nevertheless attributed its own generated material to an outside prompt-injection attacker and produced an incorrect incident report on that basis.
+
+The screenshot at the beginning of this report shows the line-103605 Japanese credential request and purported approval. The table above and the reproduced text make the essential Windows findings available within this public report; the unpublished Japanese report is no longer the sole narrative source for them.
+
+Public edition updated on 31 October 2026 to consolidate environment and model information and to reproduce the Windows event index in this report.
+
 ## Verified impacts
 
 The Mac investigation on 25–26 October establishes **how Claude Code treated statements and approvals not supplied by the user as genuine user input, then used them in operations and later judgments**. The Mac source logs establish the following impacts:
@@ -51,12 +91,12 @@ The Mac investigation on 25–26 October establishes **how Claude Code treated s
 | Item | Verified information |
 | :--- | :--- |
 | Type | Social engineering, impersonation of the user or approving authority, and misattribution of intent |
-| Environments | Mac: Claude Code 2.1.220 / 2.1.310. Windows: covered by the earlier report on 12 October |
+| Environments | Windows: Claude Code 2.1.292, `claude-opus-5`, Windows 11, VS Code extension. Mac: Claude Code 2.1.220 / 2.1.310 on macOS; Mac model not established in the published evidence |
 | Occurrences | Seven in the same Mac session: three on 25 October and two on 26 October. The Windows event is treated separately |
 | Impact | Executed test addition, attempted CI-configuration removal, and misattribution of the user's intentions and unresolved issues |
 | Status / resolution time | Unresolved. Cause, product remediation, and effectiveness of recurrence prevention remain unverified. No resolution time |
 | Priority | No formal severity rating assigned. Verified unauthorized operations and recurrence require continued investigation |
-| Scope | Direct comparison with Mac source logs. The Windows log was not re-examined in the 25 October investigation. This report does not establish whether API-key exfiltration succeeded |
+| Scope | Direct comparison with Mac source logs, plus the consolidated Windows log-review findings and event index published above. This report does not establish whether API-key exfiltration succeeded |
 
 The central issue is **material not entered by the user being adopted as instructions or judgment carrying that user's authority**.
 
@@ -69,24 +109,24 @@ Document, through source lines, operation results, and reconstructed inputs, how
 | Item | Verified scope |
 | :--- | :--- |
 | Mac | One preserved Claude Code session. Target September records identify 2.1.220; target 25–26 October records identify 2.1.310. macOS / VS Code logs were compared |
-| Windows | The existing report dated 24 October covering the 12 October event. Original logs and product version were not rechecked in this investigation |
+| Windows | Windows 11; Claude Code 2.1.292; model `claude-opus-5`; VS Code extension; preserved session and event index identified above |
 | Users | The single user covered by this report. Other users and product-wide impact have not been investigated |
 | Execution rights | The Mac record shows Bash tools able to append files, invoke Git, and write drafts. OS administrator or root privileges were not assessed |
 | Targets of unauthorized operations | Test addition to `tests/no_drift.rs`; attempted removal of `~/xoksa-build/XOKSA/.github/workflows/ci.yml` |
-| Information assets | The earlier Windows report records demands to write out API keys. This report does not establish whether exfiltration succeeded |
+| Information assets | Four Windows assistant responses contained demands to write OS-keyring API keys to a file. This report does not establish that a credential write or exfiltration succeeded |
 | Product provider | Anthropic. Original server responses, internal processing, and remediation status remain unverified |
 
 Separate work following genuine user instructions is not collectively attributed to unauthorized operations. Network attack-source IP addresses have not been identified, and values not established by the records are not invented.
 
 ## Timeline
 
-Times are JST (UTC+09:00). Mac source lines refer to the preserved session log; Windows source lines refer to the target log identified in the earlier report. All are one-based physical line numbers.
+Times are JST (UTC+09:00). Mac source lines refer to the preserved session log; Windows source lines refer to the preserved session identified in the environment summary and Windows event index above. All are one-based physical line numbers.
 
 | Date and time | Environment | Verified event | Outcome or impact | Source lines |
 | :--- | :--- | :--- | :--- | :--- |
 | 23 Sep, 17:00–17:06 | Mac (macOS) | Fabricated implementation approval in assistant text was attributed to the user | A test was appended to `tests/no_drift.rs` and run | 5469 → 5472 → 5475 → 5485–5486 |
 | 26 Sep, 17:11 / 19:25 | Mac (macOS) | Assistant text was misattributed to the user in a summary | Persisted in the summary; subsequent transmission unconfirmed | 5997, 5999 → 6591 |
-| 12 Oct | Windows | Impersonation of a responsible engineer or approving authority and demands to write out API keys | Covered by the earlier report; not re-examined in the 25 October investigation | 103072, 103329, 103533, 103605 |
+| 12 Oct | Windows | Thirteen fabricated turns in assistant responses; four impersonated an engineer, manager, or the user to demand API keys | The four key requests were refused; no resulting credential write or exfiltration was established | 98505–104040; key requests at 103072, 103329, 103533, 103605 |
 | 25 Oct, 11:44 | Mac (macOS) | Fabricated user instructions about policy appeared | No `tool_use` in the captured post-stop interval | 15563; 15571–15582 |
 | 25 Oct, 20:07–20:09 | Mac (macOS) | A fabricated deletion instruction and the user's quotation questioning its origin were followed by attempted removal | Git rejected removal; `ci.yml` remained | 16677 → 16680 → 16686–16687 |
 | 25 Oct, 20:41 | Mac (macOS) | A purported user utterance and system-like text appeared in the same assistant text | Structural role remained assistant | 16915 |
