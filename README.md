@@ -115,6 +115,11 @@ We especially welcome contact in the following cases:
 
 XOKSA is designed, specified, and reviewed by its human author. The implementation is written with AI coding assistants — **Claude Code** (Anthropic) and **Codex** (OpenAI) — and every change, regardless of who typed it, passes the same gates: the author's review, the test suite, dependency scanning, and the per-release shipping inspection measured on the exact shipped binaries. (This is about how XOKSA is *built*; how the app uses AI at *runtime* — computed numbers, AI explains only — is described above.)
 
+### Development incident report
+
+- [**Claude Code social-engineering incident report (25 October 2026)**](./docs/dev-prog/claude-code-social-engineering-incident-2026-10-25.md) — public evidence concerning observed speaker misattribution and unauthorized operations during XOKSA development. The report does not establish intent or successful credential exfiltration.
+
+
 ---
 
 ## ⚖️ License (MIT License)
@@ -238,6 +243,11 @@ xoksaはMITライセンスのもとで自由に利用可能です。しかし、
 ## 🤖 AI 支援開発
 
 XOKSA の設計・仕様・レビュー・最終判断は人間の作者が行っています。実装コーディングは AI アシスタント——**Claude Code**（Anthropic）と **Codex**（OpenAI）——の支援で書かれており、誰が書いた変更であっても同じゲート（作者レビュー・テストスイート・依存スキャン・出荷現物ハッシュに紐づく出荷検査）を通ります。（これは XOKSA の*作り方*の話です。アプリが*実行時*に AI をどう使うか——数値は計算、AI は説明のみ——は上記のとおりです。）
+
+### 開発インシデント報告
+
+- [**Claude Codeソーシャルエンジニアリング・インシデント報告（英語・2026年10月25日）**](./docs/dev-prog/claude-code-social-engineering-incident-2026-10-25.md) — XOKSA開発中に観測した発話者の誤帰属と未承認操作に関する公開証跡です。意図や認証情報の持ち出し成功を立証するものではありません。
+
 
 ---
 
