@@ -47,11 +47,34 @@ This edition includes the evidence screen supplied by the user and output excerp
 
 ## Environment and evidence summary
 
-| Incident set | Environment | Claude Code version | AI model | Interface | Preserved session and evidence |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| Windows, 12 Oct 2026 | Windows 11 | `2.1.292` | **Claude Opus 5**<br>Recorded model ID: **`claude-opus-5`**<br>Context window: **1,000,000 tokens**<br>Maximum output: **128,000 tokens**<br>Thinking: **adaptive thinking**<br>Default effort: **`high`**<br>Model released: **24 July 2026** | VS Code extension | Session `672aea77-c7d4-4bae-8270-b3a699ea61e9`; 1,105,428,939-byte JSONL; 104,078 lines; hash-verified copy made 13 Oct 2026; SHA-256 `4455d306127a1d1e74f646520de1568fe3aa27ec52099d8f544352b3d6817c6c` |
-| Mac, 23 Sep 2026 | macOS, Apple silicon (`arm64`) | `2.1.220` | **Claude Opus 5 (1M context)**<br>Recorded session designation: **`Claude Opus 5 (1M context)`**<br>Official pinned model ID: **`claude-opus-5`**<br>Context window: **1,000,000 tokens**<br>Maximum output: **128,000 tokens**<br>Thinking: **adaptive thinking**<br>Default effort: **`high`**<br>Model released: **24 July 2026** | CLI/native binary record; supporting VS Code logs were compared | Session `0eba21ef-a294-4b62-9dfb-f8afbb1d2b57`; relevant records and executable preserved and hash-checked. The model designation is also recorded in [commit `76120d5`](https://github.com/Kozo2000/xoksa-dev/commit/76120d57fe77c723f3b3f011f71aafb87d32c14b) |
-| Mac, 25–26 Oct 2026 | macOS, Apple silicon (`darwin-arm64`) | `2.1.310` | **Claude Opus 5 (1M context)**<br>Recorded session designation: **`Claude Opus 5 (1M context)`**<br>Official pinned model ID: **`claude-opus-5`**<br>Context window: **1,000,000 tokens**<br>Maximum output: **128,000 tokens**<br>Thinking: **adaptive thinking**<br>Default effort: **`high`**<br>Model released: **24 July 2026** | VS Code extension/native binary | Same preserved session; source/copy hashes, reconstructed inputs, and executable signature checks recorded below |
+### AI model
+
+| Field | Recorded value |
+| :--- | :--- |
+| Product name | **Claude Opus 5** |
+| Claude API model ID | **`claude-opus-5`** |
+| Recorded Claude Code designation | **`Claude Opus 5 (1M context)`** |
+| Context window | **1,000,000 tokens** |
+| Maximum output | **128,000 tokens** |
+| Thinking | **Adaptive thinking** |
+| Default effort | **`high`** |
+| Model release date | **24 July 2026** |
+
+### Client environment by incident
+
+| Incident set | Environment and interface | Claude Code version | AI model |
+| :--- | :--- | :--- | :--- |
+| Windows, 12 Oct 2026 | Windows 11; VS Code extension | `2.1.292` | **Claude Opus 5** (`claude-opus-5`) |
+| Mac, 23 Sep 2026 | macOS; Apple silicon (`arm64`); CLI/native binary record; supporting VS Code logs compared | `2.1.220` | **Claude Opus 5 (1M context)** |
+| Mac, 25–26 Oct 2026 | macOS; Apple silicon (`darwin-arm64`); VS Code extension/native binary | `2.1.310` | **Claude Opus 5 (1M context)** |
+
+### Preserved sessions and evidence
+
+| Incident set | Preserved session | Evidence |
+| :--- | :--- | :--- |
+| Windows, 12 Oct 2026 | `672aea77-c7d4-4bae-8270-b3a699ea61e9` | JSONL: 1,105,428,939 bytes and 104,078 lines. Hash-verified copy made 13 Oct 2026. SHA-256: `4455d306127a1d1e74f646520de1568fe3aa27ec52099d8f544352b3d6817c6c` |
+| Mac, 23 Sep 2026 | `0eba21ef-a294-4b62-9dfb-f8afbb1d2b57` | Relevant records and executable preserved and hash-checked. The model designation is also recorded in [commit `76120d5`](https://github.com/Kozo2000/xoksa-dev/commit/76120d57fe77c723f3b3f011f71aafb87d32c14b) |
+| Mac, 25–26 Oct 2026 | Same preserved Mac session | Source/copy hashes, reconstructed inputs, and executable-signature checks are recorded below |
 
 ## Windows event index: 12 October 2026
 
