@@ -2,7 +2,7 @@
 
 ## Revision notice — 31 October 2026
 
-This report had already been publicly linked and viewed before the environment and Windows-event summary was added on 31 October 2026. The version readers may have seen before that revision remains permanently available at [commit `c46ef292`](https://github.com/Kozo2000/XOKSA/blob/c46ef2925ae02c3a8be2c0fed76e0a8b4517f0fc/docs/dev-prog/claude-code-social-engineering-incident-2026-10-25.md).
+This report had already been publicly linked and viewed before the environment and Windows-event summary was added on 31 October 2026. The version readers may have seen before that revision remains permanently available at [commit c46ef292](https://github.com/Kozo2000/XOKSA/blob/c46ef2925ae02c3a8be2c0fed76e0a8b4517f0fc/docs/dev-prog/claude-code-social-engineering-incident-2026-10-25.md).
 
 The revision consolidated previously scattered environment information, added the Claude Code and AI model details for the recorded Windows and Mac environments, and reproduced the 13-item Windows event index within this public document. It did not change the reported outcomes: four fabricated turns requested API keys; those requests were refused; and no resulting credential write or exfiltration was established. The evidence image was not changed.
 
