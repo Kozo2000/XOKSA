@@ -47,34 +47,44 @@ This edition includes the evidence screen supplied by the user and output excerp
 
 ## Environment and evidence summary
 
-### AI model
-
-| Field | Recorded value |
-| :--- | :--- |
-| Product name | **Claude Opus 5** |
-| Claude API model ID | **`claude-opus-5`** |
-| Recorded Claude Code designation | **`Claude Opus 5 (1M context)`** |
-| Context window | **1,000,000 tokens** |
-| Maximum output | **128,000 tokens** |
-| Thinking | **Adaptive thinking** |
-| Default effort | **`high`** |
-| Model release date | **24 July 2026** |
-
-### Client environment by incident
-
-| Incident set | Environment and interface | Claude Code version | AI model |
-| :--- | :--- | :--- | :--- |
-| Windows, 12 Oct 2026 | Windows 11; VS Code extension | `2.1.292` | **Claude Opus 5** (`claude-opus-5`) |
-| Mac, 23 Sep 2026 | macOS; Apple silicon (`arm64`); CLI/native binary record; supporting VS Code logs compared | `2.1.220` | **Claude Opus 5 (1M context)** |
-| Mac, 25–26 Oct 2026 | macOS; Apple silicon (`darwin-arm64`); VS Code extension/native binary | `2.1.310` | **Claude Opus 5 (1M context)** |
-
-### Preserved sessions and evidence
-
-| Incident set | Preserved session | Evidence |
-| :--- | :--- | :--- |
-| Windows, 12 Oct 2026 | `672aea77-c7d4-4bae-8270-b3a699ea61e9` | JSONL: 1,105,428,939 bytes and 104,078 lines. Hash-verified copy made 13 Oct 2026. SHA-256: `4455d306127a1d1e74f646520de1568fe3aa27ec52099d8f544352b3d6817c6c` |
-| Mac, 23 Sep 2026 | `0eba21ef-a294-4b62-9dfb-f8afbb1d2b57` | Relevant records and executable preserved and hash-checked. The model designation is also recorded in [commit `76120d5`](https://github.com/Kozo2000/xoksa-dev/commit/76120d57fe77c723f3b3f011f71aafb87d32c14b) |
-| Mac, 25–26 Oct 2026 | Same preserved Mac session | Source/copy hashes, reconstructed inputs, and executable-signature checks are recorded below |
+<table>
+<thead>
+<tr>
+<th width="10%">Incident set</th>
+<th width="14%">Environment</th>
+<th width="10%">Claude Code version</th>
+<th width="25%">AI model</th>
+<th width="12%">Interface</th>
+<th width="29%">Preserved session and evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows, 12 Oct 2026</td>
+<td>Windows 11</td>
+<td><code>2.1.292</code></td>
+<td><strong>Claude Opus 5</strong><br>Recorded model ID: <strong><code>claude-opus-5</code></strong><br>Context window: <strong>1,000,000 tokens</strong><br>Maximum output: <strong>128,000 tokens</strong><br>Thinking: <strong>adaptive thinking</strong><br>Default effort: <strong><code>high</code></strong><br>Model released: <strong>24 July 2026</strong></td>
+<td>VS Code extension</td>
+<td>Session <code>672aea77-c7d4-4bae-8270-b3a699ea61e9</code>; 1,105,428,939-byte JSONL; 104,078 lines; hash-verified copy made 13 Oct 2026; SHA-256 <code>4455d306127a1d1e74f646520de1568fe3aa27ec52099d8f544352b3d6817c6c</code></td>
+</tr>
+<tr>
+<td>Mac, 23 Sep 2026</td>
+<td>macOS, Apple silicon (<code>arm64</code>)</td>
+<td><code>2.1.220</code></td>
+<td><strong>Claude Opus 5 (1M context)</strong><br>Recorded session designation: <strong><code>Claude Opus 5 (1M context)</code></strong><br>Official pinned model ID: <strong><code>claude-opus-5</code></strong><br>Context window: <strong>1,000,000 tokens</strong><br>Maximum output: <strong>128,000 tokens</strong><br>Thinking: <strong>adaptive thinking</strong><br>Default effort: <strong><code>high</code></strong><br>Model released: <strong>24 July 2026</strong></td>
+<td>CLI/native binary record; supporting VS Code logs were compared</td>
+<td>Session <code>0eba21ef-a294-4b62-9dfb-f8afbb1d2b57</code>; relevant records and executable preserved and hash-checked. The model designation is also recorded in <a href="https://github.com/Kozo2000/xoksa-dev/commit/76120d57fe77c723f3b3f011f71aafb87d32c14b">commit <code>76120d5</code></a></td>
+</tr>
+<tr>
+<td>Mac, 25–26 Oct 2026</td>
+<td>macOS, Apple silicon (<code>darwin-arm64</code>)</td>
+<td><code>2.1.310</code></td>
+<td><strong>Claude Opus 5 (1M context)</strong><br>Recorded session designation: <strong><code>Claude Opus 5 (1M context)</code></strong><br>Official pinned model ID: <strong><code>claude-opus-5</code></strong><br>Context window: <strong>1,000,000 tokens</strong><br>Maximum output: <strong>128,000 tokens</strong><br>Thinking: <strong>adaptive thinking</strong><br>Default effort: <strong><code>high</code></strong><br>Model released: <strong>24 July 2026</strong></td>
+<td>VS Code extension/native binary</td>
+<td>Same preserved session; source/copy hashes, reconstructed inputs, and executable signature checks recorded below</td>
+</tr>
+</tbody>
+</table>
 
 ## Windows event index: 12 October 2026
 
