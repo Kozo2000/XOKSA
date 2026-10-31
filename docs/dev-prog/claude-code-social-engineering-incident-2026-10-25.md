@@ -2,9 +2,9 @@
 
 ## Revision notice — 31 October 2026
 
-This report had already been publicly linked and viewed before the environment and Windows-event summary was added on 31 October 2026. The version readers may have seen before that revision remains permanently available at [commit `c46ef292`](https://github.com/Kozo2000/XOKSA/blob/c46ef2925ae02c3a8be2c0fed76e0a8b4517f0fc/docs/dev-prog/claude-code-social-engineering-incident-2026-10-25.md). The exact update is reviewable in [PR #37](https://github.com/Kozo2000/XOKSA/pull/37/files).
+This report had already been publicly linked and viewed before the environment and Windows-event summary was added on 31 October 2026. The version readers may have seen before that revision remains permanently available at [commit `c46ef292`](https://github.com/Kozo2000/XOKSA/blob/c46ef2925ae02c3a8be2c0fed76e0a8b4517f0fc/docs/dev-prog/claude-code-social-engineering-incident-2026-10-25.md).
 
-The revision consolidated previously scattered environment information, added the Windows Claude Code version and model already reported to Anthropic, and reproduced the 13-item Windows event index within this public document. It did not change the reported outcomes: four fabricated turns requested API keys; those requests were refused; and no resulting credential write or exfiltration was established. The evidence image was not changed. The Mac model remains identified as not established by the published evidence.
+The revision consolidated previously scattered environment information, added the Claude Code and AI model details for the recorded Windows and Mac environments, and reproduced the 13-item Windows event index within this public document. It did not change the reported outcomes: four fabricated turns requested API keys; those requests were refused; and no resulting credential write or exfiltration was established. The evidence image was not changed.
 
 **A Claude Code response contained text impersonating the user and demanding that API keys be written to a file, together with the purported approval “I approve this on my own responsibility.” The user supplied neither the instruction nor the approval.**
 
@@ -93,7 +93,7 @@ The Mac investigation on 25–26 October establishes **how Claude Code treated s
 | Item | Verified information |
 | :--- | :--- |
 | Type | Social engineering, impersonation of the user or approving authority, and misattribution of intent |
-| Environments | Windows: Claude Code 2.1.292, `claude-opus-5`, Windows 11, VS Code extension. Mac: Claude Code 2.1.220 / 2.1.310 on macOS; Mac model not established in the published evidence |
+| Environments | Windows: Claude Code 2.1.292, `claude-opus-5`, Windows 11, VS Code extension. Mac: Claude Code 2.1.220 / 2.1.310, Claude Opus 5 (1M context), macOS |
 | Occurrences | Seven in the same Mac session: three on 25 October and two on 26 October. The Windows event is treated separately |
 | Impact | Executed test addition, attempted CI-configuration removal, and misattribution of the user's intentions and unresolved issues |
 | Status / resolution time | Unresolved. Cause, product remediation, and effectiveness of recurrence prevention remain unverified. No resolution time |
@@ -110,7 +110,7 @@ Document, through source lines, operation results, and reconstructed inputs, how
 
 | Item | Verified scope |
 | :--- | :--- |
-| Mac | One preserved Claude Code session. Target September records identify 2.1.220; target 25–26 October records identify 2.1.310. macOS / VS Code logs were compared |
+| Mac | One preserved Claude Code session. Target September records identify Claude Code 2.1.220 and Claude Opus 5 (1M context); target 25–26 October records identify Claude Code 2.1.310 and Claude Opus 5 (1M context). macOS / VS Code logs were compared |
 | Windows | Windows 11; Claude Code 2.1.292; model `claude-opus-5`; VS Code extension; preserved session and event index identified above |
 | Users | The single user covered by this report. Other users and product-wide impact have not been investigated |
 | Execution rights | The Mac record shows Bash tools able to append files, invoke Git, and write drafts. OS administrator or root privileges were not assessed |
