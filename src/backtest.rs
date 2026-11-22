@@ -1118,8 +1118,8 @@ mod uncomputed_indicator_tests {
             !eval_condition(&m, None, &cond_ind("close", "lt", "ema_l")),
             "the reverse must not hold either"
         );
-        // RSI/MACD are computed from the basic entry and stay usable.
-        assert!(m.contains_key("rsi") && m.contains_key("macd"));
+        // Nor can they produce RSI(14) or MACD(12,26,9).
+        assert!(!m.contains_key("rsi") && !m.contains_key("macd"));
     }
 
     #[test]

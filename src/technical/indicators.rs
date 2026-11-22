@@ -4,9 +4,9 @@ use super::types::TechnicalDataGuard;
 use crate::config::Config;
 use crate::market::MarketData;
 use anyhow::{anyhow, bail, Result};
+use fin_primitives::signals::batch_f64;
 use std::collections::HashMap;
 use ta::indicators::BollingerBands;
-use ta::indicators::{MovingAverageConvergenceDivergence, RelativeStrengthIndex};
 use ta::Next;
 
 pub type ExtensionEvaluator = fn(&Config, &[MarketData], &mut TechnicalDataGuard) -> Result<()>;
@@ -155,34 +155,19 @@ pub fn build_basic_technical_entry(
 
     let closes: Vec<f64> = data.iter().map(|d| d.close).collect();
 
-    let mut rsi_calc =
-        RelativeStrengthIndex::new(14).map_err(|e| anyhow!("❌ RSI initialization failed: {e}"))?;
-    let rsi = closes
-        .iter()
-        .cloned()
-        .map(|close_value| rsi_calc.next(close_value))
+    // Wilder RSI(14) and SMA-seeded MACD(12,26,9), as TA-Lib and the charts compute them.
+    // A value the series is too short to produce stays NaN and the guard records it as absent.
+    let rsi = batch_f64::rsi(&closes, 14)
         .last()
+        .copied()
         .ok_or_else(|| anyhow!("❌ RSI calculation failed"))?;
 
-    let mut macd_calc = MovingAverageConvergenceDivergence::new(12, 26, 9)
-        .map_err(|e| anyhow!("❌ MACD initialization failed: {e}"))?;
-
-    let mut prev_macd: f64 = 0.0;
-    let mut prev_signal: f64 = 0.0;
-    let mut macd: f64 = 0.0;
-    let mut signal: f64 = 0.0;
-
-    for (index, close_value) in closes.iter().cloned().enumerate() {
-        let out = macd_calc.next(close_value);
-        if index == closes.len() - 2 {
-            prev_macd = out.macd;
-            prev_signal = out.signal;
-        }
-        if index == closes.len() - 1 {
-            macd = out.macd;
-            signal = out.signal;
-        }
-    }
+    let (macd_line, signal_line, _) = batch_f64::macd(&closes, 12, 26, 9);
+    let n = closes.len();
+    let prev_macd = macd_line[n - 2];
+    let prev_signal = signal_line[n - 2];
+    let macd = macd_line[n - 1];
+    let signal = signal_line[n - 1];
 
     let macd_diff = (macd - signal).abs();
     let macd_up = macd > signal && (macd > 0.0 || config.macd_minus_ok);
@@ -1499,6 +1484,27 @@ mod tests {
         let config = Config::default();
         let map = HashMap::new();
         assert!(build_basic_technical_entry(&config, &[], &map).is_err());
+    }
+    #[test]
+    fn build_basic_rsi_is_wilder() {
+        // Wilder's worked example: 14 changes give average gain 3.34/14 and loss 1.40/14,
+        // so RSI(14) is 70.464 on the 15th close and 66.250 on the 16th. An EMA-smoothed
+        // RSI (ta 0.5) reads 61.48 on the 16th.
+        let closes = [
+            44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84, 46.08, 45.89, 46.03,
+            45.61, 46.28, 46.28, 46.00,
+        ];
+        let data: Vec<MarketData> = closes
+            .iter()
+            .enumerate()
+            .map(|(i, &c)| make_row(&format!("2026-01-{:02}", i + 1), c))
+            .collect();
+        let config = Config::default();
+        let map = HashMap::new();
+        let g15 = build_basic_technical_entry(&config, &data[..15], &map).unwrap();
+        assert!((g15.get_rsi() - 70.464).abs() < 1e-3, "{}", g15.get_rsi());
+        let g16 = build_basic_technical_entry(&config, &data, &map).unwrap();
+        assert!((g16.get_rsi() - 66.250).abs() < 1e-3, "{}", g16.get_rsi());
     }
     #[test]
     fn build_basic_one_row_returns_err() {

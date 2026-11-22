@@ -52,6 +52,7 @@ calamine = "0.36"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ta = "0.5.0"
+fin-primitives = { version = "4.0.1", default-features = false, features = ["indicators"] }
 chrono = "0.4"
 clap = { version = "4.3", features = ["derive"] }
 urlencoding = "2.1.2"
